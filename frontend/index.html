@@ -406,7 +406,9 @@ const STR = {
     inv_vuln:n=>`${n} known vulnerabilit${n===1?'y':'ies'} found`,
     inv_need_version:"Add a version to check for vulnerabilities.",
     inv_check_btn:"Check",
-    inv_remove_confirm:name=>`Remove "${name}" from your inventory?`,
+    inv_remove_confirm:name=>`Remove "${name}" from your inventory? This can't be undone.`,
+    inv_remove_btn:"Remove",
+    inv_remove_tooltip:"Permanently remove this item from your inventory",
     inv_custom_option:"Custom / not listed",
     dashboard_h1:"Your Domains",
     dashboard_sub:"A running checkup of your public-facing security — plain language, no jargon.",
@@ -486,7 +488,9 @@ const STR = {
     inv_vuln:n=>`既知の脆弱性が${n}件見つかりました`,
     inv_need_version:"脆弱性をチェックするにはバージョンを入力してください。",
     inv_check_btn:"チェック",
-    inv_remove_confirm:name=>`「${name}」をインベントリから削除しますか？`,
+    inv_remove_confirm:name=>`「${name}」をインベントリから削除しますか？元に戻せません。`,
+    inv_remove_btn:"削除",
+    inv_remove_tooltip:"この項目をインベントリから完全に削除します",
     inv_custom_option:"カスタム／リストにない製品",
     dashboard_h1:"あなたのドメイン",
     dashboard_sub:"公開されている自社セキュリティの継続チェック — 専門用語なしで分かりやすく。",
@@ -1358,7 +1362,7 @@ async function renderAssets(){
         <div class="aMeta">${a.tech_key || ''}${a.version ? ' · v'+a.version : ''}</div>
       </div>
       ${statusHtml}
-      <button class="btn" data-remove="${a.id}" style="padding:5px 10px; font-size:11px;">✕</button>
+      <button class="btn" data-remove="${a.id}" title="${t('inv_remove_tooltip')}" style="padding:5px 10px; font-size:11px; color:var(--critical); border-color:rgba(194,31,69,0.3);">🗑 ${t('inv_remove_btn')}</button>
       ${cveListHtml}
     </div>`;
   }).join('');
