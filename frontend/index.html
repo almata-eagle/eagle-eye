@@ -124,13 +124,15 @@
   .domainGrid{display:grid; grid-template-columns:repeat(auto-fill, minmax(240px,1fr)); gap:16px;}
   .domainCard{
     background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:22px;
-    cursor:pointer; transition:transform .15s, box-shadow .15s; box-shadow:var(--shadow-card);
+    cursor:pointer; transition:transform .18s cubic-bezier(.2,.8,.3,1), box-shadow .18s, border-color .18s; box-shadow:var(--shadow-card);
   }
-  .domainCard:hover{transform:translateY(-2px); box-shadow:0 4px 14px rgba(28,36,48,0.1);}
+  .domainCard:hover{transform:translateY(-3px); box-shadow:0 8px 22px rgba(28,36,48,0.14); border-color:rgba(14,142,130,0.25);}
   .domainCard .dcTop{display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;}
   .domainCard .dcName{font-family:var(--font-mono); font-weight:600; font-size:13.5px; word-break:break-all;}
-  .domainCard .dcRing{width:56px; height:56px; flex-shrink:0;}
+  .domainCard .dcRing{width:56px; height:56px; flex-shrink:0; display:flex; align-items:center; justify-content:center;}
   .domainCard .dcMeta{color:var(--muted); font-size:12px; display:flex; justify-content:space-between; align-items:center;}
+  @keyframes scoreEnter{from{opacity:0; transform:scale(.85);} to{opacity:1; transform:scale(1);}}
+  .scoreEnter{animation:scoreEnter .45s cubic-bezier(.2,.8,.3,1) both;}
   .talonBadge{
     display:inline-flex; align-items:center; gap:4px; background:rgba(14,142,130,0.1); color:var(--signal);
     font-size:10px; font-weight:600; padding:3px 8px; border-radius:20px; letter-spacing:0.02em;
@@ -280,6 +282,11 @@
       </div>
     </div>
     <select id="langSelect"><option value="en">EN</option><option value="ja">日本語</option></select>
+    <select id="cardStyleSelect" title="Score card style" style="background:var(--panel-2); border:1px solid var(--line); color:var(--text); font-size:12.5px; padding:7px 10px; border-radius:8px;">
+      <option value="ring">◎ Ring</option>
+      <option value="gauge">◡ Gauge</option>
+      <option value="grade">🅰 Grade</option>
+    </select>
     <button id="themeToggleBtn" title="Toggle light/dark">◐</button>
     <button id="logoutBtn" data-i18n="logout_btn">Log out</button>
   </div>
@@ -357,6 +364,7 @@ let TOKEN = localStorage.getItem('eagle_eye_token') || null;
 let ACCOUNT = JSON.parse(localStorage.getItem('eagle_eye_account') || 'null');
 let LANG = localStorage.getItem('eagle_eye_lang') || 'en';
 let THEME = localStorage.getItem('eagle_eye_theme') || 'light';
+let CARD_STYLE = localStorage.getItem('eagle_eye_card_style') || 'ring';
 let CURRENT_DOMAINS = [];
 let CURRENT_DETAIL_DOMAIN = null;
 
@@ -697,6 +705,14 @@ function setTheme(theme){
 }
 document.getElementById('themeToggleBtn').onclick = ()=> setTheme(THEME==='light'?'dark':'light');
 
+document.getElementById('cardStyleSelect').value = CARD_STYLE;
+document.getElementById('cardStyleSelect').onchange = (e)=>{
+  CARD_STYLE = e.target.value;
+  localStorage.setItem('eagle_eye_card_style', CARD_STYLE);
+  if(document.getElementById('detailView').style.display !== 'none') openDetail(CURRENT_DETAIL_DOMAIN);
+  else if(document.getElementById('dashboardView').style.display !== 'none') renderDashboard();
+};
+
 document.getElementById('langSelect').onchange = (e)=>{
   LANG = e.target.value;
   localStorage.setItem('eagle_eye_lang', LANG);
@@ -781,11 +797,56 @@ function ringSvg(score, size, strokeWidth, color){
   const r = (size - strokeWidth) / 2;
   const c = 2 * Math.PI * r;
   const dash = c * ((score||0) / 100);
-  return `<svg viewBox="0 0 ${size} ${size}" width="${size}" height="${size}">
+  return `<svg viewBox="0 0 ${size} ${size}" width="${size}" height="${size}" class="scoreEnter">
     <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="var(--line)" stroke-width="${strokeWidth}"/>
     <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="${color}" stroke-width="${strokeWidth}"
-      stroke-dasharray="${dash} ${c}" stroke-linecap="round" transform="rotate(-90 ${size/2} ${size/2})"/>
+      stroke-dasharray="${dash} ${c}" stroke-linecap="round" transform="rotate(-90 ${size/2} ${size/2})"
+      style="filter:drop-shadow(0 0 6px ${color}66);"/>
   </svg>`;
+}
+
+function gaugeSvg(score, size, strokeWidth, color){
+  const cx = size/2, cy = size/2 + size*0.12;
+  const r = (size - strokeWidth*2) / 2;
+  const c = 2 * Math.PI * r;
+  const halfC = c / 2;
+  const dash = halfC * ((score||0) / 100);
+  const thetaRad = (180 + (score||0)/100*180) * Math.PI/180;
+  const markerX = cx + r * Math.cos(thetaRad);
+  const markerY = cy + r * Math.sin(thetaRad);
+  const viewH = size*0.62;
+  return `<svg viewBox="0 0 ${size} ${viewH}" width="${size}" height="${viewH}" class="scoreEnter">
+    <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--line)" stroke-width="${strokeWidth}"
+      stroke-dasharray="${halfC} ${c}" stroke-linecap="round" transform="rotate(180 ${cx} ${cy})"/>
+    <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${color}" stroke-width="${strokeWidth}"
+      stroke-dasharray="${dash} ${c}" stroke-linecap="round" transform="rotate(180 ${cx} ${cy})"
+      style="filter:drop-shadow(0 0 6px ${color}66);"/>
+    <circle cx="${markerX}" cy="${markerY}" r="${strokeWidth*0.55}" fill="${color}" stroke="var(--panel)" stroke-width="2"/>
+  </svg>`;
+}
+
+function scoreGrade(score){
+  if(score>=97) return 'A+'; if(score>=93) return 'A'; if(score>=90) return 'A-';
+  if(score>=87) return 'B+'; if(score>=83) return 'B'; if(score>=80) return 'B-';
+  if(score>=77) return 'C+'; if(score>=73) return 'C'; if(score>=70) return 'C-';
+  if(score>=60) return 'D'; return 'F';
+}
+
+function gradeBadge(score, size, color){
+  const grade = scoreGrade(score||0);
+  const fontSize = size * (grade.length > 1 ? 0.34 : 0.44);
+  return `<div class="scoreEnter" style="width:${size}px; height:${size}px; border-radius:${size*0.28}px; background:${color}18;
+    border:2.5px solid ${color}; display:flex; align-items:center; justify-content:center;
+    box-shadow:0 0 14px ${color}40;">
+    <span style="font-family:var(--font-display); font-weight:700; font-size:${fontSize}px; color:${color};">${grade}</span>
+  </div>`;
+}
+
+function scoreVisual(score, tier, size, strokeWidth){
+  const color = TIER_COLOR[tier] || 'var(--dim)';
+  if(CARD_STYLE === 'gauge') return gaugeSvg(score, size, strokeWidth, color);
+  if(CARD_STYLE === 'grade') return gradeBadge(score, size, color);
+  return ringSvg(score, size, strokeWidth, color);
 }
 
 function daysAgoText(iso){
@@ -828,7 +889,7 @@ async function renderDashboard(){
     return `<div class="domainCard" data-domain="${d.domain}">
       <div class="dcTop">
         <div class="dcName">${d.domain}</div>
-        <div class="dcRing">${ringSvg(d.overall_score||0, 56, 6, color)}</div>
+        <div class="dcRing">${scoreVisual(d.overall_score||0, d.tier, 56, 6)}</div>
       </div>
       <div class="dcMeta"><span>${daysAgoText(d.last_scanned)}</span>${talonBadge}</div>
     </div>`;
@@ -941,9 +1002,12 @@ function renderDetailBody(domain, latest, history, talonClientId){
 
   body.innerHTML = `
     <div class="vitalsSection">
-      <div class="vitalsRing">
-        ${ringSvg(score, 150, 12, color)}
-        <div class="num"><div class="score">${score}</div><div class="outof">/ 100</div></div>
+      <div style="display:flex; flex-direction:column; align-items:center; flex-shrink:0;">
+        <div class="vitalsRing">
+          ${scoreVisual(score, latest.tier, 150, 12)}
+          ${CARD_STYLE === 'ring' ? `<div class="num"><div class="score">${score}</div><div class="outof">/ 100</div></div>` : ''}
+        </div>
+        ${CARD_STYLE !== 'ring' ? `<div style="text-align:center; margin-top:6px; font-family:var(--font-mono); font-size:13px; color:var(--muted);">${score} / 100</div>` : ''}
       </div>
       <div class="vitalsText">
         <div class="tier" style="color:${color}">${tTier(latest.tier)}</div>
