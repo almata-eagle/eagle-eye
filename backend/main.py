@@ -19,11 +19,14 @@ hashing (stdlib only, no extra dependency) + bearer tokens persisted in
 SQLite. Real production use would want rate limiting, email verification,
 password reset, and HTTPS enforcement — none of that is here yet.
 """
+import calendar
 import hashlib
 import json
 import os
 import secrets
 import sqlite3
+import threading
+import time
 import datetime
 from pathlib import Path
 from typing import Optional
@@ -32,6 +35,7 @@ from fastapi import FastAPI, HTTPException, Header, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
+import techstack
 from scanner import scan_domain, tier_for_score
 
 app = FastAPI(title="Eagle Eye API", version="0.1.0")
@@ -67,6 +71,26 @@ def _db():
     conn.execute("""CREATE TABLE IF NOT EXISTS eye_scans (
         id INTEGER PRIMARY KEY AUTOINCREMENT, account_id TEXT NOT NULL,
         domain TEXT NOT NULL, data TEXT NOT NULL, scanned_at TEXT NOT NULL)""")
+    conn.execute("""CREATE TABLE IF NOT EXISTS assets (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, account_id TEXT NOT NULL,
+        label TEXT NOT NULL, tech_key TEXT, version TEXT,
+        last_checked_at TEXT, cached_cves TEXT, created_at TEXT NOT NULL)""")
+    conn.execute("""CREATE TABLE IF NOT EXISTS monitors (
+        account_id TEXT NOT NULL, domain TEXT NOT NULL,
+        frequency_hours INTEGER NOT NULL DEFAULT 24, enabled INTEGER NOT NULL DEFAULT 1,
+        last_checked_at TEXT, created_at TEXT NOT NULL,
+        PRIMARY KEY (account_id, domain))""")
+    # Safe additive migration for the Daily/Weekly/Monthly scheduling model —
+    # mirrors Talon's identical migration. Existing monitors default to "daily".
+    mon_cols = [r[1] for r in conn.execute("PRAGMA table_info(monitors)").fetchall()]
+    if "freq_type" not in mon_cols:
+        conn.execute("ALTER TABLE monitors ADD COLUMN freq_type TEXT NOT NULL DEFAULT 'daily'")
+        conn.execute("ALTER TABLE monitors ADD COLUMN day_of_week INTEGER")
+        conn.execute("ALTER TABLE monitors ADD COLUMN day_of_month INTEGER")
+    conn.execute("""CREATE TABLE IF NOT EXISTS eye_alerts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, account_id TEXT NOT NULL, domain TEXT NOT NULL,
+        severity TEXT NOT NULL, code TEXT NOT NULL, data TEXT NOT NULL,
+        created_at TEXT NOT NULL, is_read INTEGER NOT NULL DEFAULT 0)""")
     conn.commit()
     return conn
 
@@ -306,31 +330,36 @@ def remove_domain(domain: str, account: dict = Depends(get_current_account)):
     return {"deleted": domain}
 
 
-@app.post("/api/domains/{domain}/scan")
-def scan_own_domain(domain: str, account: dict = Depends(get_current_account)):
-    """Runs a real scan — same passive OSINT engine as Eagle Talon. If this
-    domain is linked to a Talon client, the result also writes back into
-    Talon's database so the operator sees client-initiated activity too —
-    manual re-scans now; any future Eye-side automated scanning would go
-    through this same function, so the write-back applies automatically."""
-    try:
-        result = scan_domain(domain)
-    except Exception as e:
-        raise HTTPException(500, f"Scan failed: {e}")
+def _run_scan_for_account_domain(account_id: str, domain: str) -> dict:
+    """The one place a real scan happens for an Eye account's domain —
+    manual 'Run new check' and the monitoring scheduler both call this, so
+    Talon write-back and history-saving behave identically either way."""
+    result = scan_domain(domain)
 
     conn = _db()
     conn.execute("INSERT INTO eye_scans (account_id, domain, data, scanned_at) VALUES (?,?,?,?)",
-                 (account["id"], domain, json.dumps(result), result["scanned_at"]))
-    talon_client_id = conn.execute("SELECT linked_talon_client_id FROM account_domains WHERE account_id=? AND domain=?",
-                                    (account["id"], domain)).fetchone()
+                 (account_id, domain, json.dumps(result), result["scanned_at"]))
+    talon_row = conn.execute("SELECT linked_talon_client_id FROM account_domains WHERE account_id=? AND domain=?",
+                              (account_id, domain)).fetchone()
     conn.commit()
     conn.close()
 
-    talon_client_id = talon_client_id[0] if talon_client_id else None
+    talon_client_id = talon_row[0] if talon_row else None
     if talon_client_id:
         _write_talon_scan(talon_client_id, domain, result)
 
     return result
+
+
+@app.post("/api/domains/{domain}/scan")
+def scan_own_domain(domain: str, account: dict = Depends(get_current_account)):
+    """Runs a real scan — same passive OSINT engine as Eagle Talon. If this
+    domain is linked to a Talon client, the result also writes back into
+    Talon's database so the operator sees client-initiated activity too."""
+    try:
+        return _run_scan_for_account_domain(account["id"], domain)
+    except Exception as e:
+        raise HTTPException(500, f"Scan failed: {e}")
 
 
 @app.get("/api/domains/{domain}/latest")
@@ -403,3 +432,255 @@ def unlink_talon(domain: str, account: dict = Depends(get_current_account)):
 @app.get("/")
 def root():
     return {"service": "Eagle Eye API", "docs": "/docs", "talon_linked_mode": bool(TALON_DB_PATH)}
+
+
+# ---------------------------------------------------------------------------
+# Monitoring — scheduled re-scans + change-detection alerts, scoped to an
+# Eye account rather than a Talon client. Same behavior either way: goes
+# through _run_scan_for_account_domain(), so a monitored domain that's
+# linked to Talon writes back there too, automatically.
+# ---------------------------------------------------------------------------
+def _check_eye_monitor(account_id: str, domain: str):
+    conn = _db()
+    row = conn.execute("SELECT data FROM eye_scans WHERE account_id=? AND domain=? ORDER BY scanned_at DESC LIMIT 1",
+                        (account_id, domain)).fetchone()
+    old_scan = json.loads(row[0]) if row else None
+    conn.close()
+
+    try:
+        new_scan = _run_scan_for_account_domain(account_id, domain)
+    except Exception:
+        conn = _db()
+        conn.execute("UPDATE monitors SET last_checked_at=? WHERE account_id=? AND domain=?",
+                     (datetime.datetime.utcnow().isoformat(), account_id, domain))
+        conn.commit(); conn.close()
+        return
+
+    if old_scan:
+        for a in _detect_changes(old_scan, new_scan):
+            conn = _db()
+            conn.execute("INSERT INTO eye_alerts (account_id, domain, severity, code, data, created_at, is_read) VALUES (?,?,?,?,?,?,0)",
+                         (account_id, domain, a["severity"], a["code"], json.dumps(a["data"]), datetime.datetime.utcnow().isoformat()))
+            conn.commit(); conn.close()
+
+    conn = _db()
+    conn.execute("UPDATE monitors SET last_checked_at=? WHERE account_id=? AND domain=?",
+                 (datetime.datetime.utcnow().isoformat(), account_id, domain))
+    conn.commit(); conn.close()
+
+
+def _monitor_is_due(freq_type: str, day_of_week: Optional[int], day_of_month: Optional[int],
+                     last_checked_at: Optional[str], now: Optional[datetime.datetime] = None) -> bool:
+    """Mirrors Talon's identical function — see its docstring for the full
+    reasoning. Daily: once per calendar day. Weekly: on the chosen weekday.
+    Monthly: on the chosen day-of-month, clamped to the month's real length."""
+    now = now or datetime.datetime.utcnow()
+    if not last_checked_at:
+        return True
+    last = datetime.datetime.fromisoformat(last_checked_at)
+    if last.date() == now.date():
+        return False
+    if freq_type == "weekly":
+        return now.weekday() == (day_of_week if day_of_week is not None else 0)
+    if freq_type == "monthly":
+        days_in_month = calendar.monthrange(now.year, now.month)[1]
+        target_day = min(day_of_month or 1, days_in_month)
+        return now.day == target_day
+    return True
+
+
+def _eye_monitoring_scheduler_loop():
+    while True:
+        try:
+            conn = _db()
+            monitors = conn.execute("""SELECT account_id, domain, freq_type, day_of_week, day_of_month, last_checked_at
+                                        FROM monitors WHERE enabled=1""").fetchall()
+            conn.close()
+            for account_id, domain, freq_type, day_of_week, day_of_month, last_checked_at in monitors:
+                if _monitor_is_due(freq_type, day_of_week, day_of_month, last_checked_at):
+                    _check_eye_monitor(account_id, domain)
+        except Exception:
+            pass
+        time.sleep(60)
+
+
+threading.Thread(target=_eye_monitoring_scheduler_loop, daemon=True).start()
+
+
+class MonitorCreate(BaseModel):
+    domain: str
+    freq_type: str = "daily"
+    day_of_week: Optional[int] = None
+    day_of_month: Optional[int] = None
+
+
+@app.post("/api/monitors")
+def create_monitor(req: MonitorCreate, account: dict = Depends(get_current_account)):
+    if req.freq_type not in ("daily", "weekly", "monthly"):
+        raise HTTPException(400, "freq_type must be 'daily', 'weekly', or 'monthly'.")
+    conn = _db()
+    conn.execute("""INSERT INTO monitors (account_id, domain, freq_type, day_of_week, day_of_month, enabled, created_at)
+                     VALUES (?,?,?,?,?,1,?)
+                     ON CONFLICT(account_id, domain) DO UPDATE SET
+                         freq_type=excluded.freq_type, day_of_week=excluded.day_of_week,
+                         day_of_month=excluded.day_of_month, enabled=1""",
+                 (account["id"], req.domain, req.freq_type, req.day_of_week, req.day_of_month,
+                  datetime.datetime.utcnow().isoformat()))
+    conn.commit(); conn.close()
+    return {"domain": req.domain, "freq_type": req.freq_type, "day_of_week": req.day_of_week,
+            "day_of_month": req.day_of_month, "enabled": True}
+
+
+@app.delete("/api/monitors/{domain}")
+def disable_monitor(domain: str, account: dict = Depends(get_current_account)):
+    conn = _db()
+    conn.execute("UPDATE monitors SET enabled=0 WHERE account_id=? AND domain=?", (account["id"], domain))
+    conn.commit(); conn.close()
+    return {"domain": domain, "enabled": False}
+
+
+@app.get("/api/monitors")
+def list_monitors(account: dict = Depends(get_current_account)):
+    conn = _db()
+    rows = conn.execute("""SELECT domain, freq_type, day_of_week, day_of_month, enabled, last_checked_at
+                            FROM monitors WHERE account_id=?""", (account["id"],)).fetchall()
+    conn.close()
+    return {"monitors": [{"domain": r[0], "freq_type": r[1], "day_of_week": r[2], "day_of_month": r[3],
+                           "enabled": bool(r[4]), "last_checked_at": r[5]} for r in rows]}
+
+
+@app.post("/api/monitors/{domain}/check-now")
+def check_monitor_now(domain: str, account: dict = Depends(get_current_account)):
+    _check_eye_monitor(account["id"], domain)
+    return {"checked": True, "domain": domain}
+
+
+@app.get("/api/alerts")
+def list_alerts(account: dict = Depends(get_current_account)):
+    conn = _db()
+    rows = conn.execute("""SELECT id, domain, severity, code, data, created_at, is_read FROM eye_alerts
+                            WHERE account_id=? ORDER BY created_at DESC LIMIT 100""", (account["id"],)).fetchall()
+    conn.close()
+    return {"alerts": [{"id": r[0], "domain": r[1], "severity": r[2], "code": r[3],
+                         "data": json.loads(r[4]), "created_at": r[5], "is_read": bool(r[6])} for r in rows]}
+
+
+@app.post("/api/alerts/{alert_id}/read")
+def mark_alert_read(alert_id: int, account: dict = Depends(get_current_account)):
+    conn = _db()
+    conn.execute("UPDATE eye_alerts SET is_read=1 WHERE id=? AND account_id=?", (alert_id, account["id"]))
+    conn.commit(); conn.close()
+    return {"id": alert_id, "is_read": True}
+
+
+@app.post("/api/alerts/mark-all-read")
+def mark_all_alerts_read(account: dict = Depends(get_current_account)):
+    conn = _db()
+    conn.execute("UPDATE eye_alerts SET is_read=1 WHERE account_id=?", (account["id"],))
+    conn.commit(); conn.close()
+    return {"ok": True}
+
+
+# ---------------------------------------------------------------------------
+# Asset & software CVE inventory — the "internal, no-agent" visibility
+# option: a self-reported list of what's actually running (office hardware,
+# OS versions, software), vetted against the same NVD data domains use.
+# ---------------------------------------------------------------------------
+COMMON_ASSET_LABELS = [
+    "Office Firewall", "Office Router", "Office Wi-Fi Access Point", "VPN Gateway",
+    "File Server", "Email Server", "Backup Server", "Domain Controller",
+    "Reception PC", "Employee Laptop", "Employee Desktop", "Point of Sale System",
+    "Printer / Scanner", "Security Camera / NVR", "Guest Wi-Fi",
+]
+
+
+@app.get("/api/asset-catalog")
+def asset_catalog():
+    """The known, CVE-trackable products, grouped for a dropdown, plus a
+    starter list of common asset labels. Either can be overridden with a
+    custom typed value — this list is just a head start, not a restriction."""
+    return {"categories": techstack.CPE_CATEGORIES, "common_labels": COMMON_ASSET_LABELS}
+
+
+class AssetCreate(BaseModel):
+    label: str
+    tech_key: Optional[str] = None
+    version: Optional[str] = None
+
+
+@app.post("/api/assets")
+def add_asset(req: AssetCreate, account: dict = Depends(get_current_account)):
+    if not req.label.strip():
+        raise HTTPException(400, "Give this asset a label, e.g. 'Office firewall' or 'Reception PC'.")
+    conn = _db()
+    conn.execute("INSERT INTO assets (account_id, label, tech_key, version, created_at) VALUES (?,?,?,?,?)",
+                 (account["id"], req.label.strip(), req.tech_key, req.version, datetime.datetime.utcnow().isoformat()))
+    asset_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+    conn.commit(); conn.close()
+    return {"id": asset_id, "label": req.label.strip(), "tech_key": req.tech_key, "version": req.version}
+
+
+@app.get("/api/assets")
+def list_assets(account: dict = Depends(get_current_account)):
+    conn = _db()
+    rows = conn.execute("""SELECT id, label, tech_key, version, last_checked_at, cached_cves
+                            FROM assets WHERE account_id=? ORDER BY created_at ASC""", (account["id"],)).fetchall()
+    conn.close()
+    out = []
+    for r in rows:
+        out.append({
+            "id": r[0], "label": r[1], "tech_key": r[2], "version": r[3],
+            "last_checked_at": r[4], "cves": json.loads(r[5]) if r[5] else None,
+            "trackable": r[2] in techstack.CPE_MAP,
+        })
+    return {"assets": out}
+
+
+@app.delete("/api/assets/{asset_id}")
+def delete_asset(asset_id: int, account: dict = Depends(get_current_account)):
+    conn = _db()
+    conn.execute("DELETE FROM assets WHERE id=? AND account_id=?", (asset_id, account["id"]))
+    conn.commit(); conn.close()
+    return {"deleted": asset_id}
+
+
+@app.post("/api/assets/{asset_id}/check")
+def check_asset(asset_id: int, account: dict = Depends(get_current_account)):
+    conn = _db()
+    row = conn.execute("SELECT label, tech_key, version FROM assets WHERE id=? AND account_id=?",
+                        (asset_id, account["id"])).fetchone()
+    if not row:
+        conn.close()
+        raise HTTPException(404, "No such asset.")
+    label, tech_key, version = row
+
+    if not tech_key or tech_key not in techstack.CPE_MAP:
+        conn.close()
+        raise HTTPException(400, "This product isn't in the trackable catalog yet — recorded for inventory, but no automatic CVE matching available.")
+    if not version or not version.strip():
+        conn.close()
+        raise HTTPException(400, "Add a version number to check for known vulnerabilities.")
+
+    cves = techstack.lookup_cves(tech_key, version.strip())
+    checked_at = datetime.datetime.utcnow().isoformat()
+    conn.execute("UPDATE assets SET last_checked_at=?, cached_cves=? WHERE id=?",
+                 (checked_at, json.dumps(cves), asset_id))
+    conn.commit(); conn.close()
+    return {"id": asset_id, "label": label, "cves": cves, "last_checked_at": checked_at}
+
+
+@app.post("/api/assets/check-all")
+def check_all_assets(account: dict = Depends(get_current_account)):
+    conn = _db()
+    rows = conn.execute("SELECT id, tech_key, version FROM assets WHERE account_id=?", (account["id"],)).fetchall()
+    conn.close()
+    checked = 0
+    for asset_id, tech_key, version in rows:
+        if tech_key in techstack.CPE_MAP and version and version.strip():
+            cves = techstack.lookup_cves(tech_key, version.strip())
+            conn = _db()
+            conn.execute("UPDATE assets SET last_checked_at=?, cached_cves=? WHERE id=?",
+                         (datetime.datetime.utcnow().isoformat(), json.dumps(cves), asset_id))
+            conn.commit(); conn.close()
+            checked += 1
+    return {"checked": checked, "total": len(rows)}

@@ -263,6 +263,7 @@
     <div class="brand"><img src="logo-icon.png" alt="">EAGLE EYE<span class="company" id="companyLabel"></span></div>
     <div class="navTabs">
       <button class="navTab active" id="navDomains" data-i18n="nav_domains">Domains</button>
+      <button class="navTab" id="navMonitoring" data-i18n="nav_monitoring">Monitoring</button>
       <button class="navTab" id="navInventory" data-i18n="nav_inventory">Inventory</button>
     </div>
     <div class="spacer"></div>
@@ -313,17 +314,31 @@
     <button class="btn" id="checkAllAssetsBtn" style="margin-bottom:20px; margin-left:8px;" data-i18n="inv_check_all_btn">Check all for vulnerabilities</button>
     <div id="assetList"></div>
   </div>
+
+  <div class="wrap" id="monitoringView" style="display:none;">
+    <div class="pageHead">
+      <h1 data-i18n="mon_h1">Monitoring</h1>
+      <p data-i18n="mon_sub">Domains being automatically re-checked, and when.</p>
+    </div>
+    <div id="monitoringList"></div>
+  </div>
 </div>
 
 <div class="modal" id="assetModal" style="display:none; position:fixed; inset:0; z-index:60; align-items:center; justify-content:center; background:rgba(20,24,30,0.5);">
   <div style="width:420px; background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:26px;">
     <h3 style="margin-bottom:4px;" data-i18n="inv_modal_title">Add an item</h3>
     <p style="color:var(--muted); font-size:12.5px; margin-bottom:18px;" data-i18n="inv_modal_sub">Give it a name you'll recognize, and pick the product if it's one we can check.</p>
-    <div class="authField"><label data-i18n="inv_label_field">Label</label><input id="assetLabelInput" placeholder="e.g. Office firewall, Reception PC"></div>
-    <div class="authField"><label data-i18n="inv_product_field">Product (optional)</label>
-      <select id="assetTechSelect" style="width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text); padding:11px 13px; border-radius:9px; font-size:14px;"></select>
+    <div class="authField"><label data-i18n="inv_label_field">Label</label>
+      <select id="assetLabelSelect" style="width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text); padding:11px 13px; border-radius:9px; font-size:14px;"></select>
+      <input id="assetLabelCustomInput" placeholder="e.g. Break room printer" style="display:none; margin-top:8px; width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text); padding:11px 13px; border-radius:9px; font-size:14px;">
     </div>
-    <div class="authField"><label data-i18n="inv_version_field">Version (optional)</label><input id="assetVersionInput" placeholder="e.g. 10.0.17763"></div>
+    <div class="authField"><label data-i18n="inv_product_field">Product</label>
+      <select id="assetTechSelect" style="width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text); padding:11px 13px; border-radius:9px; font-size:14px;"></select>
+      <input id="assetTechCustomInput" placeholder="e.g. Ubiquiti EdgeRouter" style="display:none; margin-top:8px; width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text); padding:11px 13px; border-radius:9px; font-size:14px;">
+    </div>
+    <div class="authField"><label data-i18n="inv_version_field">Version (optional)</label><input id="assetVersionInput" placeholder="e.g. 10.0.17763, 22.04, 7.0.1">
+      <p style="font-size:11px; color:var(--dim); margin-top:5px;" data-i18n="inv_version_hint">We can't offer a dropdown of versions — there are too many and a wrong guess could give false confidence. Check your device or Settings/About screen for the exact number.</p>
+    </div>
     <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:8px;">
       <button class="btn" id="assetModalCancel" data-i18n="inv_cancel">Cancel</button>
       <button class="btn primary" id="assetModalSave" data-i18n="inv_save">Add</button>
@@ -364,7 +379,15 @@ const STR = {
     alert_new_cve:()=>"A new known vulnerability (CVE) was detected.",
     alert_cert_now_expired:()=>"TLS certificate is now expired.",
     monitor_h:"Continuous monitoring", monitor_on:"On", monitor_off:"Off",
-    monitor_freq_daily:"Daily", monitor_freq_weekly:"Weekly",
+    monitor_freq_daily:"Daily",
+    monitor_freq_weekly:"Weekly",
+    monitor_freq_monthly:"Monthly",
+    monitor_day_of_month:d=>`Day ${d} of the month`,
+    nav_monitoring:"Monitoring",
+    mon_h1:"Monitoring",
+    mon_sub:"Domains being automatically re-checked, and when.",
+    mon_no_domains:"Add a domain first, then you can turn on monitoring for it here.",
+    inv_version_hint:"We can't offer a dropdown of versions — there are too many and a wrong guess could give false confidence. Check your device or Settings/About screen for the exact number.",
     monitor_last_checked:iso=>iso ? `Last checked ${new Date(iso).toLocaleString()}` : "Not checked yet",
     monitor_check_now:"Check now",
     monitor_enable_hint:"We'll automatically re-check this domain and alert you here if something meaningfully changes.",
@@ -431,7 +454,7 @@ const STR = {
     no_account:"アカウントをお持ちでない方は", sign_up_link:"新規登録",
     have_account:"すでにアカウントをお持ちの方は", log_in_link:"ログイン",
     logout_btn:"ログアウト",
-    nav_domains:"ドメイン", nav_inventory:"インベントリ",
+    nav_domains:"ドメイン", nav_monitoring:"監視", nav_inventory:"インベントリ",
     alerts_h:"アラート", mark_all_read:"すべて既読にする", no_alerts:"アラートはまだありません。",
     alert_score_drop:p=>`スコアが ${p.old_score} から ${p.new_score} に低下しました`,
     alert_tier_worsened:p=>`リスクレベルが悪化しました：${tTier(p.old_tier)} → ${tTier(p.new_tier)}`,
@@ -439,10 +462,15 @@ const STR = {
     alert_new_cve:()=>"新しい既知の脆弱性（CVE）が検出されました。",
     alert_cert_now_expired:()=>"TLS証明書の有効期限が切れました。",
     monitor_h:"継続監視", monitor_on:"オン", monitor_off:"オフ",
-    monitor_freq_daily:"毎日", monitor_freq_weekly:"毎週",
+    monitor_freq_daily:"毎日", monitor_freq_weekly:"毎週", monitor_freq_monthly:"毎月",
+    monitor_day_of_month:d=>`毎月${d}日`,
+    mon_h1:"監視",
+    mon_sub:"自動的に再チェックされるドメインと、そのタイミング。",
+    mon_no_domains:"まずドメインを追加すると、ここで監視をオンにできます。",
     monitor_last_checked:iso=>iso ? `最終チェック：${new Date(iso).toLocaleString()}` : "まだチェックされていません",
     monitor_check_now:"今すぐチェック",
     monitor_enable_hint:"このドメインを自動的に再チェックし、意味のある変化があった場合にここで通知します。",
+    inv_version_hint:"バージョンのドロップダウンは提供できません — 種類が多すぎるうえ、誤った選択が誤った安心感につながる可能性があるためです。デバイスや「設定」→「このデバイスについて」で正確な番号をご確認ください。",
     inv_h1:"ハードウェア・ソフトウェア インベントリ",
     inv_sub:"実際に使用しているものをリストしてください — エージェント不要、ネットワークスキャン不要 — 既知の脆弱性と照合します。",
     inv_add_btn:"＋ 項目を追加", inv_check_all_btn:"すべて脆弱性チェック",
@@ -1019,21 +1047,20 @@ document.getElementById('pdfBtn').onclick = async ()=>{
 };
 
 // ---------- Nav tabs ----------
-document.getElementById('navDomains').onclick = ()=>{
-  document.getElementById('navDomains').classList.add('active');
-  document.getElementById('navInventory').classList.remove('active');
-  document.getElementById('inventoryView').style.display = 'none';
-  document.getElementById('dashboardView').style.display = 'block';
+function showNavView(which){
+  document.getElementById('navDomains').classList.toggle('active', which==='domains');
+  document.getElementById('navMonitoring').classList.toggle('active', which==='monitoring');
+  document.getElementById('navInventory').classList.toggle('active', which==='inventory');
+  document.getElementById('dashboardView').style.display = which==='domains' ? 'block' : 'none';
   document.getElementById('detailView').style.display = 'none';
-};
-document.getElementById('navInventory').onclick = ()=>{
-  document.getElementById('navInventory').classList.add('active');
-  document.getElementById('navDomains').classList.remove('active');
-  document.getElementById('dashboardView').style.display = 'none';
-  document.getElementById('detailView').style.display = 'none';
-  document.getElementById('inventoryView').style.display = 'block';
-  renderAssets();
-};
+  document.getElementById('monitoringView').style.display = which==='monitoring' ? 'block' : 'none';
+  document.getElementById('inventoryView').style.display = which==='inventory' ? 'block' : 'none';
+  if(which==='monitoring') renderMonitoringPage();
+  if(which==='inventory') renderAssets();
+}
+document.getElementById('navDomains').onclick = ()=>showNavView('domains');
+document.getElementById('navMonitoring').onclick = ()=>showNavView('monitoring');
+document.getElementById('navInventory').onclick = ()=>showNavView('inventory');
 
 // ---------- Alerts ----------
 const ALERT_SEVERITY_COLOR = {critical:"var(--critical)", warning:"var(--watch)"};
@@ -1089,6 +1116,41 @@ document.addEventListener('click', (e)=>{
 setInterval(()=>{ if(TOKEN) loadAlerts(); }, 120000);
 
 // ---------- Domain monitoring (inside detail view) ----------
+const WEEKDAY_NAMES_EN = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
+const WEEKDAY_NAMES_JA = ["月曜日","火曜日","水曜日","木曜日","金曜日","土曜日","日曜日"];
+function weekdayName(i){ return (LANG==='ja'?WEEKDAY_NAMES_JA:WEEKDAY_NAMES_EN)[i]; }
+
+function freqSelectorsHtml(monitor){
+  const freqType = monitor ? monitor.freq_type : 'daily';
+  const dow = monitor && monitor.day_of_week!=null ? monitor.day_of_week : 0;
+  const dom = monitor && monitor.day_of_month!=null ? monitor.day_of_month : 1;
+  return `
+    <select class="monFreqType" style="width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text); padding:8px 10px; border-radius:8px; font-size:12px; margin-bottom:8px;">
+      <option value="daily" ${freqType==='daily'?'selected':''}>${t('monitor_freq_daily')}</option>
+      <option value="weekly" ${freqType==='weekly'?'selected':''}>${t('monitor_freq_weekly')}</option>
+      <option value="monthly" ${freqType==='monthly'?'selected':''}>${t('monitor_freq_monthly')}</option>
+    </select>
+    <select class="monDayOfWeek" style="width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text); padding:8px 10px; border-radius:8px; font-size:12px; margin-bottom:8px; ${freqType==='weekly'?'':'display:none;'}">
+      ${[0,1,2,3,4,5,6].map(i=>`<option value="${i}" ${i===dow?'selected':''}>${weekdayName(i)}</option>`).join('')}
+    </select>
+    <select class="monDayOfMonth" style="width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text); padding:8px 10px; border-radius:8px; font-size:12px; margin-bottom:8px; ${freqType==='monthly'?'':'display:none;'}">
+      ${Array.from({length:31},(_,i)=>i+1).map(d=>`<option value="${d}" ${d===dom?'selected':''}>${t('monitor_day_of_month')(d)}</option>`).join('')}
+    </select>
+  `;
+}
+function wireFreqSelectors(container, onChange){
+  const typeSel = container.querySelector('.monFreqType');
+  const dowSel = container.querySelector('.monDayOfWeek');
+  const domSel = container.querySelector('.monDayOfMonth');
+  typeSel.onchange = ()=>{
+    dowSel.style.display = typeSel.value==='weekly' ? 'block' : 'none';
+    domSel.style.display = typeSel.value==='monthly' ? 'block' : 'none';
+    onChange({freq_type: typeSel.value, day_of_week: parseInt(dowSel.value), day_of_month: parseInt(domSel.value)});
+  };
+  dowSel.onchange = ()=> onChange({freq_type: typeSel.value, day_of_week: parseInt(dowSel.value), day_of_month: parseInt(domSel.value)});
+  domSel.onchange = ()=> onChange({freq_type: typeSel.value, day_of_week: parseInt(dowSel.value), day_of_month: parseInt(domSel.value)});
+}
+
 async function renderMonitorSection(domain){
   const el = document.getElementById('monitorBody');
   if(!el) return;
@@ -1106,10 +1168,7 @@ async function renderMonitorSection(domain){
       </button>
     </div>
     ${isOn ? `
-      <select id="monitorFreqSelect" style="width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text); padding:8px 10px; border-radius:8px; font-size:12px; margin-bottom:8px;">
-        <option value="24" ${monitor.frequency_hours===24?'selected':''}>${t('monitor_freq_daily')}</option>
-        <option value="168" ${monitor.frequency_hours===168?'selected':''}>${t('monitor_freq_weekly')}</option>
-      </select>
+      <div id="monFreqWrap">${freqSelectorsHtml(monitor)}</div>
       <div style="display:flex; justify-content:space-between; align-items:center;">
         <span style="font-size:11px; color:var(--dim);">${t('monitor_last_checked')(monitor.last_checked_at)}</span>
         <button class="btn" id="monitorCheckNowBtn" style="padding:5px 10px; font-size:11px;">${t('monitor_check_now')}</button>
@@ -1118,13 +1177,13 @@ async function renderMonitorSection(domain){
   `;
   document.getElementById('monitorSwitchBtn').onclick = async ()=>{
     if(isOn) await api(`/api/monitors/${encodeURIComponent(domain)}`, {method:'DELETE'});
-    else await api('/api/monitors', {method:'POST', body: JSON.stringify({domain, frequency_hours: 24})});
+    else await api('/api/monitors', {method:'POST', body: JSON.stringify({domain, freq_type:'daily'})});
     renderMonitorSection(domain);
   };
   if(isOn){
-    document.getElementById('monitorFreqSelect').onchange = async (e)=>{
-      await api('/api/monitors', {method:'POST', body: JSON.stringify({domain, frequency_hours: parseInt(e.target.value)})});
-    };
+    wireFreqSelectors(document.getElementById('monFreqWrap'), async (vals)=>{
+      await api('/api/monitors', {method:'POST', body: JSON.stringify({domain, ...vals})});
+    });
     document.getElementById('monitorCheckNowBtn').onclick = async (e)=>{
       e.target.disabled = true; e.target.textContent = t('scanning');
       try{
@@ -1135,34 +1194,99 @@ async function renderMonitorSection(domain){
   }
 }
 
+// ---------- Dedicated Monitoring page ----------
+async function renderMonitoringPage(){
+  const list = document.getElementById('monitoringList');
+  list.innerHTML = '…';
+  let monitors = [];
+  try{ monitors = (await api('/api/monitors')).monitors; }catch(e){ monitors = []; }
+
+  if(CURRENT_DOMAINS.length === 0){
+    list.innerHTML = `<p style="color:var(--muted); font-size:13px;">${t('mon_no_domains')}</p>`;
+    return;
+  }
+
+  list.innerHTML = CURRENT_DOMAINS.map(d=>{
+    const monitor = monitors.find(m=>m.domain===d.domain && m.enabled);
+    const isOn = !!monitor;
+    return `<div class="domainCard" data-domain="${d.domain}" style="cursor:default; margin-bottom:12px;">
+      <div class="dcTop" style="margin-bottom:${isOn?'12px':'0'};">
+        <div class="dcName">${d.domain}</div>
+        <button class="monSwitchBtn" style="position:relative; width:38px; height:21px; border-radius:11px; border:none; cursor:pointer; background:${isOn?'var(--signal)':'var(--line)'};">
+          <span style="position:absolute; top:2px; left:${isOn?'19px':'2px'}; width:17px; height:17px; background:#fff; border-radius:50%; transition:left .15s;"></span>
+        </button>
+      </div>
+      ${isOn ? `<div class="monFreqWrapRow">${freqSelectorsHtml(monitor)}</div>
+        <div style="font-size:11px; color:var(--dim);">${t('monitor_last_checked')(monitor.last_checked_at)}</div>` : ''}
+    </div>`;
+  }).join('');
+
+  list.querySelectorAll('.domainCard').forEach(card=>{
+    const domain = card.dataset.domain;
+    const switchBtn = card.querySelector('.monSwitchBtn');
+    switchBtn.onclick = async ()=>{
+      const monitors2 = (await api('/api/monitors')).monitors;
+      const isOn = monitors2.find(m=>m.domain===domain && m.enabled);
+      if(isOn) await api(`/api/monitors/${encodeURIComponent(domain)}`, {method:'DELETE'});
+      else await api('/api/monitors', {method:'POST', body: JSON.stringify({domain, freq_type:'daily'})});
+      renderMonitoringPage();
+    };
+    const freqWrap = card.querySelector('.monFreqWrapRow');
+    if(freqWrap){
+      wireFreqSelectors(freqWrap, async (vals)=>{
+        await api('/api/monitors', {method:'POST', body: JSON.stringify({domain, ...vals})});
+      });
+    }
+  });
+}
+
 // ---------- Asset & software inventory ----------
 let ASSET_CATALOG = {};
+let ASSET_LABELS = [];
 async function loadAssetCatalog(){
   try{
     const data = await api('/api/asset-catalog');
     ASSET_CATALOG = data.categories;
-  }catch(e){ ASSET_CATALOG = {}; }
+    ASSET_LABELS = data.common_labels || [];
+  }catch(e){ ASSET_CATALOG = {}; ASSET_LABELS = []; }
 }
 
-function populateAssetTechSelect(){
-  const sel = document.getElementById('assetTechSelect');
-  let html = `<option value="">${t('inv_custom_option')}</option>`;
+function populateAssetModalSelects(){
+  const labelSel = document.getElementById('assetLabelSelect');
+  labelSel.innerHTML = ASSET_LABELS.map(l=>`<option value="${l}">${l}</option>`).join('')
+    + `<option value="__other__">${t('inv_custom_option')}</option>`;
+
+  const techSel = document.getElementById('assetTechSelect');
+  let html = `<option value="__other__">${t('inv_custom_option')}</option>`;
   for(const [category, items] of Object.entries(ASSET_CATALOG)){
     html += `<optgroup label="${category}">` + items.map(i=>`<option value="${i}">${i}</option>`).join('') + `</optgroup>`;
   }
-  sel.innerHTML = html;
+  techSel.innerHTML = html;
+
+  document.getElementById('assetLabelCustomInput').style.display = 'none';
+  document.getElementById('assetTechCustomInput').style.display = 'none';
 }
 
+document.getElementById('assetLabelSelect').onchange = (e)=>{
+  document.getElementById('assetLabelCustomInput').style.display = e.target.value === '__other__' ? 'block' : 'none';
+};
+document.getElementById('assetTechSelect').onchange = (e)=>{
+  document.getElementById('assetTechCustomInput').style.display = e.target.value === '__other__' ? 'block' : 'none';
+};
+
 document.getElementById('openAddAssetBtn').onclick = ()=>{
-  populateAssetTechSelect();
-  document.getElementById('assetLabelInput').value = '';
+  populateAssetModalSelects();
+  document.getElementById('assetLabelCustomInput').value = '';
+  document.getElementById('assetTechCustomInput').value = '';
   document.getElementById('assetVersionInput').value = '';
   document.getElementById('assetModal').style.display = 'flex';
 };
 document.getElementById('assetModalCancel').onclick = ()=>{ document.getElementById('assetModal').style.display = 'none'; };
 document.getElementById('assetModalSave').onclick = async ()=>{
-  const label = document.getElementById('assetLabelInput').value.trim();
-  const tech_key = document.getElementById('assetTechSelect').value || null;
+  const labelSel = document.getElementById('assetLabelSelect').value;
+  const label = labelSel === '__other__' ? document.getElementById('assetLabelCustomInput').value.trim() : labelSel;
+  const techSel = document.getElementById('assetTechSelect').value;
+  const tech_key = techSel === '__other__' ? (document.getElementById('assetTechCustomInput').value.trim() || null) : techSel;
   const version = document.getElementById('assetVersionInput').value.trim() || null;
   if(!label) return;
   try{
