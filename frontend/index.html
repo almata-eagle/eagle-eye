@@ -62,6 +62,24 @@
   .topbar .brand img{height:26px; width:auto;}
   .topbar .company{color:var(--muted); font-size:13px; margin-left:4px; padding-left:12px; border-left:1px solid var(--line);}
   .topbar .spacer{flex:1;}
+  .navTabs{display:flex; gap:4px; background:var(--panel-2); border:1px solid var(--line); border-radius:9px; padding:3px;}
+  .navTab{background:transparent; border:none; color:var(--muted); font-size:12.5px; font-weight:600; padding:7px 14px; border-radius:7px; cursor:pointer;}
+  .navTab.active{background:var(--panel); color:var(--text); box-shadow:var(--shadow-card);}
+
+  .assetCard{
+    background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:18px 20px;
+    display:flex; align-items:center; gap:16px; margin-bottom:10px; box-shadow:var(--shadow-card); flex-wrap:wrap;
+  }
+  .assetCard .aInfo{flex:1; min-width:200px;}
+  .assetCard .aLabel{font-weight:600; font-size:14px;}
+  .assetCard .aMeta{color:var(--muted); font-size:12px; margin-top:3px;}
+  .assetStatus{font-size:12px; font-weight:600; padding:5px 11px; border-radius:20px; white-space:nowrap;}
+  .assetStatus.clean{background:rgba(30,158,90,0.1); color:var(--clear);}
+  .assetStatus.vuln{background:rgba(194,31,69,0.1); color:var(--critical);}
+  .assetStatus.untracked{background:var(--panel-2); color:var(--dim);}
+  .assetStatus.unchecked{background:var(--panel-2); color:var(--muted);}
+  .assetCveList{width:100%; margin-top:12px; padding-top:12px; border-top:1px solid var(--line-soft);}
+  .assetCveItem{font-size:12.5px; padding:9px 12px; background:var(--panel-2); border-left:3px solid var(--critical); border-radius:0 8px 8px 0; margin-bottom:6px;}
   .topbar button, .topbar select{
     background:var(--panel-2); border:1px solid var(--line); color:var(--text); font-size:12.5px;
     padding:7px 12px; border-radius:8px;
@@ -76,9 +94,8 @@
     width:100%; max-width:420px; background:var(--panel); border:1px solid var(--line); border-radius:16px;
     padding:40px 36px; box-shadow:var(--shadow-card);
   }
-  .authLogo{display:flex; align-items:center; gap:10px; justify-content:center; margin-bottom:8px;}
-  .authLogo img{height:34px; width:auto;}
-  .authLogo span{font-family:var(--font-display); font-weight:700; font-size:20px;}
+  .authLogo{display:flex; align-items:center; justify-content:center; margin-bottom:8px;}
+  .authLogo img{height:100px; width:auto;}
   .authTagline{text-align:center; color:var(--muted); font-size:13.5px; margin-bottom:32px; line-height:1.6;}
   .authField{margin-bottom:14px;}
   .authField label{display:block; font-size:12.5px; color:var(--muted); margin-bottom:6px; font-weight:500;}
@@ -222,7 +239,7 @@
 
 <div id="authScreen" class="authWrap">
   <div class="authCard">
-    <div class="authLogo"><img src="logo-icon.png" alt=""><span>EAGLE EYE</span></div>
+    <div class="authLogo"><img src="logo-full.png" alt="Eagle Eye"></div>
     <p class="authTagline" data-i18n="auth_tagline">See your business the way an attacker does — and exactly what to fix.</p>
     <div class="authError" id="authError"></div>
     <div id="authFormLogin">
@@ -244,7 +261,23 @@
 <div id="appScreen" style="display:none;">
   <div class="topbar">
     <div class="brand"><img src="logo-icon.png" alt="">EAGLE EYE<span class="company" id="companyLabel"></span></div>
+    <div class="navTabs">
+      <button class="navTab active" id="navDomains" data-i18n="nav_domains">Domains</button>
+      <button class="navTab" id="navInventory" data-i18n="nav_inventory">Inventory</button>
+    </div>
     <div class="spacer"></div>
+    <div style="position:relative;">
+      <button id="alertsBellBtn" title="Alerts" style="position:relative; background:var(--panel-2); border:1px solid var(--line); color:var(--text); font-size:12.5px; padding:7px 12px; border-radius:8px;">
+        🔔<span id="alertsBadge" style="display:none; position:absolute; top:-4px; right:-4px; background:var(--critical); color:#fff; font-size:9px; font-weight:700; min-width:15px; height:15px; border-radius:8px; align-items:center; justify-content:center; padding:0 3px;"></span>
+      </button>
+      <div id="alertsPanel" style="display:none; position:absolute; top:40px; right:0; width:320px; max-height:400px; overflow-y:auto; background:var(--panel); border:1px solid var(--line); border-radius:10px; box-shadow:0 8px 24px rgba(0,0,0,0.15); z-index:100;">
+        <div style="display:flex; align-items:center; justify-content:space-between; padding:12px 14px; border-bottom:1px solid var(--line);">
+          <span style="font-weight:600; font-size:13px;" data-i18n="alerts_h">Alerts</span>
+          <button id="markAllReadBtn" style="background:none; border:none; color:var(--signal); font-size:11.5px; cursor:pointer; padding:0;" data-i18n="mark_all_read">Mark all read</button>
+        </div>
+        <div id="alertsList"></div>
+      </div>
+    </div>
     <select id="langSelect"><option value="en">EN</option><option value="ja">日本語</option></select>
     <button id="themeToggleBtn" title="Toggle light/dark">◐</button>
     <button id="logoutBtn" data-i18n="logout_btn">Log out</button>
@@ -269,6 +302,32 @@
       </div>
     </div>
     <div id="detailBody"></div>
+  </div>
+
+  <div class="wrap" id="inventoryView" style="display:none;">
+    <div class="pageHead">
+      <h1 data-i18n="inv_h1">Hardware &amp; Software Inventory</h1>
+      <p data-i18n="inv_sub">List what you actually run — no agent, no network scan — and we'll check it against known vulnerabilities.</p>
+    </div>
+    <button class="btn primary" id="openAddAssetBtn" style="margin-bottom:20px;" data-i18n="inv_add_btn">+ Add an item</button>
+    <button class="btn" id="checkAllAssetsBtn" style="margin-bottom:20px; margin-left:8px;" data-i18n="inv_check_all_btn">Check all for vulnerabilities</button>
+    <div id="assetList"></div>
+  </div>
+</div>
+
+<div class="modal" id="assetModal" style="display:none; position:fixed; inset:0; z-index:60; align-items:center; justify-content:center; background:rgba(20,24,30,0.5);">
+  <div style="width:420px; background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:26px;">
+    <h3 style="margin-bottom:4px;" data-i18n="inv_modal_title">Add an item</h3>
+    <p style="color:var(--muted); font-size:12.5px; margin-bottom:18px;" data-i18n="inv_modal_sub">Give it a name you'll recognize, and pick the product if it's one we can check.</p>
+    <div class="authField"><label data-i18n="inv_label_field">Label</label><input id="assetLabelInput" placeholder="e.g. Office firewall, Reception PC"></div>
+    <div class="authField"><label data-i18n="inv_product_field">Product (optional)</label>
+      <select id="assetTechSelect" style="width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text); padding:11px 13px; border-radius:9px; font-size:14px;"></select>
+    </div>
+    <div class="authField"><label data-i18n="inv_version_field">Version (optional)</label><input id="assetVersionInput" placeholder="e.g. 10.0.17763"></div>
+    <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:8px;">
+      <button class="btn" id="assetModalCancel" data-i18n="inv_cancel">Cancel</button>
+      <button class="btn primary" id="assetModalSave" data-i18n="inv_save">Add</button>
+    </div>
   </div>
 </div>
 
@@ -297,6 +356,35 @@ const STR = {
     no_account:"Don't have an account?", sign_up_link:"Sign up",
     have_account:"Already have an account?", log_in_link:"Log in",
     logout_btn:"Log out",
+    nav_domains:"Domains", nav_inventory:"Inventory",
+    alerts_h:"Alerts", mark_all_read:"Mark all read", no_alerts:"No alerts yet.",
+    alert_score_drop:p=>`Score dropped from ${p.old_score} to ${p.new_score}`,
+    alert_tier_worsened:p=>`Risk level worsened: ${tTier(p.old_tier)} → ${tTier(p.new_tier)}`,
+    alert_new_threat_intel_hit:()=>"New threat intelligence match found.",
+    alert_new_cve:()=>"A new known vulnerability (CVE) was detected.",
+    alert_cert_now_expired:()=>"TLS certificate is now expired.",
+    monitor_h:"Continuous monitoring", monitor_on:"On", monitor_off:"Off",
+    monitor_freq_daily:"Daily", monitor_freq_weekly:"Weekly",
+    monitor_last_checked:iso=>iso ? `Last checked ${new Date(iso).toLocaleString()}` : "Not checked yet",
+    monitor_check_now:"Check now",
+    monitor_enable_hint:"We'll automatically re-check this domain and alert you here if something meaningfully changes.",
+    inv_h1:"Hardware & Software Inventory",
+    inv_sub:"List what you actually run — no agent, no network scan — and we'll check it against known vulnerabilities.",
+    inv_add_btn:"+ Add an item", inv_check_all_btn:"Check all for vulnerabilities",
+    inv_modal_title:"Add an item",
+    inv_modal_sub:"Give it a name you'll recognize, and pick the product if it's one we can check.",
+    inv_label_field:"Label", inv_product_field:"Product (optional)", inv_version_field:"Version (optional)",
+    inv_cancel:"Cancel", inv_save:"Add",
+    inv_none_yet:"Nothing here yet — add your first item above.",
+    inv_untracked:"Not in our trackable catalog yet — recorded for your records only.",
+    inv_unchecked:"Not checked yet",
+    inv_checking:"Checking…",
+    inv_clean:"No known vulnerabilities",
+    inv_vuln:n=>`${n} known vulnerabilit${n===1?'y':'ies'} found`,
+    inv_need_version:"Add a version to check for vulnerabilities.",
+    inv_check_btn:"Check",
+    inv_remove_confirm:name=>`Remove "${name}" from your inventory?`,
+    inv_custom_option:"Custom / not listed",
     dashboard_h1:"Your Domains",
     dashboard_sub:"A running checkup of your public-facing security — plain language, no jargon.",
     back_link:"All domains",
@@ -343,6 +431,35 @@ const STR = {
     no_account:"アカウントをお持ちでない方は", sign_up_link:"新規登録",
     have_account:"すでにアカウントをお持ちの方は", log_in_link:"ログイン",
     logout_btn:"ログアウト",
+    nav_domains:"ドメイン", nav_inventory:"インベントリ",
+    alerts_h:"アラート", mark_all_read:"すべて既読にする", no_alerts:"アラートはまだありません。",
+    alert_score_drop:p=>`スコアが ${p.old_score} から ${p.new_score} に低下しました`,
+    alert_tier_worsened:p=>`リスクレベルが悪化しました：${tTier(p.old_tier)} → ${tTier(p.new_tier)}`,
+    alert_new_threat_intel_hit:()=>"新しい脅威インテリジェンス該当が見つかりました。",
+    alert_new_cve:()=>"新しい既知の脆弱性（CVE）が検出されました。",
+    alert_cert_now_expired:()=>"TLS証明書の有効期限が切れました。",
+    monitor_h:"継続監視", monitor_on:"オン", monitor_off:"オフ",
+    monitor_freq_daily:"毎日", monitor_freq_weekly:"毎週",
+    monitor_last_checked:iso=>iso ? `最終チェック：${new Date(iso).toLocaleString()}` : "まだチェックされていません",
+    monitor_check_now:"今すぐチェック",
+    monitor_enable_hint:"このドメインを自動的に再チェックし、意味のある変化があった場合にここで通知します。",
+    inv_h1:"ハードウェア・ソフトウェア インベントリ",
+    inv_sub:"実際に使用しているものをリストしてください — エージェント不要、ネットワークスキャン不要 — 既知の脆弱性と照合します。",
+    inv_add_btn:"＋ 項目を追加", inv_check_all_btn:"すべて脆弱性チェック",
+    inv_modal_title:"項目を追加",
+    inv_modal_sub:"分かりやすい名前を付け、対象製品があれば選択してください。",
+    inv_label_field:"ラベル", inv_product_field:"製品（任意）", inv_version_field:"バージョン（任意）",
+    inv_cancel:"キャンセル", inv_save:"追加",
+    inv_none_yet:"まだ何も登録されていません。上のボタンから最初の項目を追加してください。",
+    inv_untracked:"まだ対応カタログにない製品です — 記録のみ保存されます。",
+    inv_unchecked:"未チェック",
+    inv_checking:"チェック中…",
+    inv_clean:"既知の脆弱性はありません",
+    inv_vuln:n=>`既知の脆弱性が${n}件見つかりました`,
+    inv_need_version:"脆弱性をチェックするにはバージョンを入力してください。",
+    inv_check_btn:"チェック",
+    inv_remove_confirm:name=>`「${name}」をインベントリから削除しますか？`,
+    inv_custom_option:"カスタム／リストにない製品",
     dashboard_h1:"あなたのドメイン",
     dashboard_sub:"公開されている自社セキュリティの継続チェック — 専門用語なしで分かりやすく。",
     back_link:"すべてのドメイン",
@@ -620,6 +737,8 @@ function enterApp(){
   document.getElementById('appScreen').style.display = 'block';
   document.getElementById('companyLabel').textContent = ACCOUNT.company_name || ACCOUNT.email;
   renderDashboard();
+  loadAlerts();
+  loadAssetCatalog();
 }
 
 // ---------- Ring gauge (small, for cards) ----------
@@ -802,8 +921,14 @@ function renderDetailBody(domain, latest, history, talonClientId){
     <div class="catGrid">${catCards}</div>
     <div class="sectionTitle">${t('sect_actions')}</div>
     <div class="actionList">${actionsHtml}</div>
+    <div class="linkSection" style="margin-top:20px;">
+      <h3>${t('monitor_h')}</h3>
+      <div id="monitorBody" style="margin-top:10px; color:var(--muted); font-size:12px;">…</div>
+    </div>
     ${linkHtml}
   `;
+
+  renderMonitorSection(domain);
 
   if(talonClientId){
     document.getElementById('unlinkBtn').onclick = async ()=>{
@@ -891,6 +1016,226 @@ document.getElementById('pdfBtn').onclick = async ()=>{
     <p style="margin-top:20px; font-size:10px; color:#777;">${t('report_footer')}</p>
   `;
   window.print();
+};
+
+// ---------- Nav tabs ----------
+document.getElementById('navDomains').onclick = ()=>{
+  document.getElementById('navDomains').classList.add('active');
+  document.getElementById('navInventory').classList.remove('active');
+  document.getElementById('inventoryView').style.display = 'none';
+  document.getElementById('dashboardView').style.display = 'block';
+  document.getElementById('detailView').style.display = 'none';
+};
+document.getElementById('navInventory').onclick = ()=>{
+  document.getElementById('navInventory').classList.add('active');
+  document.getElementById('navDomains').classList.remove('active');
+  document.getElementById('dashboardView').style.display = 'none';
+  document.getElementById('detailView').style.display = 'none';
+  document.getElementById('inventoryView').style.display = 'block';
+  renderAssets();
+};
+
+// ---------- Alerts ----------
+const ALERT_SEVERITY_COLOR = {critical:"var(--critical)", warning:"var(--watch)"};
+function alertMessage(alert){
+  const fn = t('alert_' + alert.code);
+  return fn ? fn(alert.data) : alert.code;
+}
+async function loadAlerts(){
+  try{
+    const data = await api('/api/alerts');
+    const unread = data.alerts.filter(a=>!a.is_read).length;
+    const badge = document.getElementById('alertsBadge');
+    if(unread > 0){ badge.style.display = 'flex'; badge.textContent = unread > 9 ? '9+' : unread; }
+    else badge.style.display = 'none';
+
+    const list = document.getElementById('alertsList');
+    if(data.alerts.length === 0){
+      list.innerHTML = `<div style="padding:24px 14px; text-align:center; color:var(--muted); font-size:12px;">${t('no_alerts')}</div>`;
+      return;
+    }
+    list.innerHTML = data.alerts.map(a=>{
+      const days = Math.round((Date.now()-new Date(a.created_at))/86400000);
+      return `<div data-id="${a.id}" style="padding:11px 14px; border-bottom:1px solid var(--line-soft); font-size:12px; cursor:pointer; display:flex; gap:9px; align-items:flex-start;">
+        <span style="width:7px; height:7px; border-radius:50%; margin-top:4px; background:${ALERT_SEVERITY_COLOR[a.severity]||'var(--muted)'}; flex-shrink:0;"></span>
+        <div><div style="font-family:var(--font-mono); font-weight:600; font-size:11.5px;">${a.domain}</div>
+        <div style="color:var(--muted); margin-top:2px; line-height:1.5;">${alertMessage(a)}</div>
+        <div style="color:var(--dim); font-size:10px; margin-top:4px;">${days===0?t('days_ago')(0):t('days_ago')(days)}</div></div>
+      </div>`;
+    }).join('');
+    list.querySelectorAll('[data-id]').forEach(el=>{
+      el.onclick = async ()=>{
+        await api(`/api/alerts/${el.dataset.id}/read`, {method:'POST'});
+        loadAlerts();
+      };
+    });
+  }catch(e){ /* not logged in yet, or backend unreachable — bell just shows nothing */ }
+}
+document.getElementById('alertsBellBtn').onclick = ()=>{
+  const panel = document.getElementById('alertsPanel');
+  panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+  if(panel.style.display === 'block') loadAlerts();
+};
+document.getElementById('markAllReadBtn').onclick = async (e)=>{
+  e.stopPropagation();
+  await api('/api/alerts/mark-all-read', {method:'POST'});
+  loadAlerts();
+};
+document.addEventListener('click', (e)=>{
+  const panel = document.getElementById('alertsPanel');
+  const bell = document.getElementById('alertsBellBtn');
+  if(panel.style.display==='block' && !panel.contains(e.target) && !bell.contains(e.target)) panel.style.display = 'none';
+});
+setInterval(()=>{ if(TOKEN) loadAlerts(); }, 120000);
+
+// ---------- Domain monitoring (inside detail view) ----------
+async function renderMonitorSection(domain){
+  const el = document.getElementById('monitorBody');
+  if(!el) return;
+  let monitor = null;
+  try{
+    const data = await api('/api/monitors');
+    monitor = data.monitors.find(m=>m.domain===domain) || null;
+  }catch(e){}
+  const isOn = monitor && monitor.enabled;
+  el.innerHTML = `
+    <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px;">
+      <span style="font-size:13px; font-weight:600;">${isOn ? t('monitor_on') : t('monitor_off')}</span>
+      <button id="monitorSwitchBtn" style="position:relative; width:38px; height:21px; border-radius:11px; border:none; cursor:pointer; background:${isOn?'var(--signal)':'var(--line)'};">
+        <span style="position:absolute; top:2px; left:${isOn?'19px':'2px'}; width:17px; height:17px; background:#fff; border-radius:50%; transition:left .15s;"></span>
+      </button>
+    </div>
+    ${isOn ? `
+      <select id="monitorFreqSelect" style="width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text); padding:8px 10px; border-radius:8px; font-size:12px; margin-bottom:8px;">
+        <option value="24" ${monitor.frequency_hours===24?'selected':''}>${t('monitor_freq_daily')}</option>
+        <option value="168" ${monitor.frequency_hours===168?'selected':''}>${t('monitor_freq_weekly')}</option>
+      </select>
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <span style="font-size:11px; color:var(--dim);">${t('monitor_last_checked')(monitor.last_checked_at)}</span>
+        <button class="btn" id="monitorCheckNowBtn" style="padding:5px 10px; font-size:11px;">${t('monitor_check_now')}</button>
+      </div>
+    ` : `<p style="font-size:11.5px; color:var(--dim);">${t('monitor_enable_hint')}</p>`}
+  `;
+  document.getElementById('monitorSwitchBtn').onclick = async ()=>{
+    if(isOn) await api(`/api/monitors/${encodeURIComponent(domain)}`, {method:'DELETE'});
+    else await api('/api/monitors', {method:'POST', body: JSON.stringify({domain, frequency_hours: 24})});
+    renderMonitorSection(domain);
+  };
+  if(isOn){
+    document.getElementById('monitorFreqSelect').onchange = async (e)=>{
+      await api('/api/monitors', {method:'POST', body: JSON.stringify({domain, frequency_hours: parseInt(e.target.value)})});
+    };
+    document.getElementById('monitorCheckNowBtn').onclick = async (e)=>{
+      e.target.disabled = true; e.target.textContent = t('scanning');
+      try{
+        await api(`/api/monitors/${encodeURIComponent(domain)}/check-now`, {method:'POST'});
+        loadAlerts();
+      }finally{ renderMonitorSection(domain); }
+    };
+  }
+}
+
+// ---------- Asset & software inventory ----------
+let ASSET_CATALOG = {};
+async function loadAssetCatalog(){
+  try{
+    const data = await api('/api/asset-catalog');
+    ASSET_CATALOG = data.categories;
+  }catch(e){ ASSET_CATALOG = {}; }
+}
+
+function populateAssetTechSelect(){
+  const sel = document.getElementById('assetTechSelect');
+  let html = `<option value="">${t('inv_custom_option')}</option>`;
+  for(const [category, items] of Object.entries(ASSET_CATALOG)){
+    html += `<optgroup label="${category}">` + items.map(i=>`<option value="${i}">${i}</option>`).join('') + `</optgroup>`;
+  }
+  sel.innerHTML = html;
+}
+
+document.getElementById('openAddAssetBtn').onclick = ()=>{
+  populateAssetTechSelect();
+  document.getElementById('assetLabelInput').value = '';
+  document.getElementById('assetVersionInput').value = '';
+  document.getElementById('assetModal').style.display = 'flex';
+};
+document.getElementById('assetModalCancel').onclick = ()=>{ document.getElementById('assetModal').style.display = 'none'; };
+document.getElementById('assetModalSave').onclick = async ()=>{
+  const label = document.getElementById('assetLabelInput').value.trim();
+  const tech_key = document.getElementById('assetTechSelect').value || null;
+  const version = document.getElementById('assetVersionInput').value.trim() || null;
+  if(!label) return;
+  try{
+    await api('/api/assets', {method:'POST', body: JSON.stringify({label, tech_key, version})});
+    document.getElementById('assetModal').style.display = 'none';
+    renderAssets();
+  }catch(e){ alert(e.message); }
+};
+
+async function renderAssets(){
+  const list = document.getElementById('assetList');
+  list.innerHTML = '…';
+  let assets = [];
+  try{
+    const data = await api('/api/assets');
+    assets = data.assets;
+  }catch(e){ assets = []; }
+
+  if(assets.length === 0){
+    list.innerHTML = `<p style="color:var(--muted); font-size:13px;">${t('inv_none_yet')}</p>`;
+    return;
+  }
+
+  list.innerHTML = assets.map(a=>{
+    let statusHtml;
+    if(!a.trackable){
+      statusHtml = `<span class="assetStatus untracked">${t('inv_untracked')}</span>`;
+    } else if(!a.version){
+      statusHtml = `<span class="assetStatus untracked">${t('inv_need_version')}</span>`;
+    } else if(!a.last_checked_at){
+      statusHtml = `<span class="assetStatus unchecked">${t('inv_unchecked')}</span><button class="btn" data-check="${a.id}" style="padding:5px 10px; font-size:11px; margin-left:8px;">${t('inv_check_btn')}</button>`;
+    } else if(a.cves && a.cves.length > 0){
+      statusHtml = `<span class="assetStatus vuln">${t('inv_vuln')(a.cves.length)}</span><button class="btn" data-check="${a.id}" style="padding:5px 10px; font-size:11px; margin-left:8px;">${t('inv_check_btn')}</button>`;
+    } else {
+      statusHtml = `<span class="assetStatus clean">✓ ${t('inv_clean')}</span><button class="btn" data-check="${a.id}" style="padding:5px 10px; font-size:11px; margin-left:8px;">${t('inv_check_btn')}</button>`;
+    }
+    const cveListHtml = (a.cves && a.cves.length > 0) ? `<div class="assetCveList">${a.cves.map(c=>
+      `<div class="assetCveItem"><b>${c.cve_id}</b> (${c.severity}) — ${c.summary}</div>`
+    ).join('')}</div>` : '';
+    return `<div class="assetCard" data-id="${a.id}">
+      <div class="aInfo">
+        <div class="aLabel">${a.label}</div>
+        <div class="aMeta">${a.tech_key || ''}${a.version ? ' · v'+a.version : ''}</div>
+      </div>
+      ${statusHtml}
+      <button class="btn" data-remove="${a.id}" style="padding:5px 10px; font-size:11px;">✕</button>
+      ${cveListHtml}
+    </div>`;
+  }).join('');
+
+  list.querySelectorAll('[data-check]').forEach(btn=>{
+    btn.onclick = async ()=>{
+      btn.disabled = true; btn.textContent = t('inv_checking');
+      try{ await api(`/api/assets/${btn.dataset.check}/check`, {method:'POST'}); }
+      catch(e){ /* show inline via re-render, error already handled by lack of update */ }
+      renderAssets();
+    };
+  });
+  list.querySelectorAll('[data-remove]').forEach(btn=>{
+    btn.onclick = async ()=>{
+      const card = btn.closest('.assetCard');
+      const label = card.querySelector('.aLabel').textContent;
+      if(!confirm(t('inv_remove_confirm')(label))) return;
+      await api(`/api/assets/${btn.dataset.remove}`, {method:'DELETE'});
+      renderAssets();
+    };
+  });
+}
+
+document.getElementById('checkAllAssetsBtn').onclick = async (e)=>{
+  e.target.disabled = true; e.target.textContent = t('inv_checking');
+  try{ await api('/api/assets/check-all', {method:'POST'}); }
+  finally{ e.target.disabled = false; e.target.textContent = t('inv_check_all_btn'); renderAssets(); }
 };
 
 // ---------- Startup ----------
