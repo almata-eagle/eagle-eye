@@ -1,0 +1,904 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Eagle Eye — Your Security Checkup</title>
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="icon" type="image/png" sizes="64x64" href="favicon-64.png">
+<style>
+  /* Self-hosted fonts — same family as Eagle Talon for brand continuity */
+  @font-face{font-family:'Space Grotesk';font-style:normal;font-weight:500;src:url('fonts/space-grotesk-latin-500-normal.woff2') format('woff2');font-display:swap;}
+  @font-face{font-family:'Space Grotesk';font-style:normal;font-weight:600;src:url('fonts/space-grotesk-latin-600-normal.woff2') format('woff2');font-display:swap;}
+  @font-face{font-family:'Space Grotesk';font-style:normal;font-weight:700;src:url('fonts/space-grotesk-latin-700-normal.woff2') format('woff2');font-display:swap;}
+  @font-face{font-family:'Inter';font-style:normal;font-weight:400;src:url('fonts/inter-latin-400-normal.woff2') format('woff2');font-display:swap;}
+  @font-face{font-family:'Inter';font-style:normal;font-weight:500;src:url('fonts/inter-latin-500-normal.woff2') format('woff2');font-display:swap;}
+  @font-face{font-family:'Inter';font-style:normal;font-weight:600;src:url('fonts/inter-latin-600-normal.woff2') format('woff2');font-display:swap;}
+  @font-face{font-family:'JetBrains Mono';font-style:normal;font-weight:500;src:url('fonts/jetbrains-mono-latin-500-normal.woff2') format('woff2');font-display:swap;}
+  @font-face{font-family:'Noto Sans JP';font-style:normal;font-weight:400;src:url('fonts/noto-sans-jp-japanese-400-normal.woff2') format('woff2');font-display:swap;}
+  @font-face{font-family:'Noto Sans JP';font-style:normal;font-weight:500;src:url('fonts/noto-sans-jp-japanese-500-normal.woff2') format('woff2');font-display:swap;}
+  @font-face{font-family:'Noto Sans JP';font-style:normal;font-weight:600;src:url('fonts/noto-sans-jp-japanese-600-normal.woff2') format('woff2');font-display:swap;}
+  @font-face{font-family:'Noto Sans JP';font-style:normal;font-weight:700;src:url('fonts/noto-sans-jp-japanese-700-normal.woff2') format('woff2');font-display:swap;}
+
+  :root{
+    --font-display:'Space Grotesk','Noto Sans JP',sans-serif;
+    --font-body:'Inter','Noto Sans JP',sans-serif;
+    --font-mono:'JetBrains Mono','Noto Sans JP',monospace;
+  }
+  /* Light by default — deliberately different register from Talon's dark
+     console: this is a personal checkup, not a SOC monitor. Warm, spacious,
+     reassuring rather than dense. Tier/risk colors match Talon exactly so
+     "red means bad" carries across both products. */
+  html[data-theme="light"]{
+    --bg:#F8F6F1; --panel:#FFFFFF; --panel-2:#F2EFE7; --line:#E7E2D5; --line-soft:#EFEBE0;
+    --text:#1C2430; --muted:#6B7280; --dim:#9CA3AF;
+    --clear:#1E9E5A; --watch:#B8790F; --high:#D14B26; --critical:#C21F45; --signal:#0E8E82;
+    --navy:#2E405C; --shadow-card:0 1px 3px rgba(28,36,48,0.06), 0 1px 2px rgba(28,36,48,0.04);
+  }
+  html[data-theme="dark"]{
+    --bg:#0F1419; --panel:#171D24; --panel-2:#1C232B; --line:#2A323C; --line-soft:#232A32;
+    --text:#EDF1F5; --muted:#8B96A3; --dim:#5A6472;
+    --clear:#3DDC84; --watch:#F2B84B; --high:#FF6B4A; --critical:#E23D5C; --signal:#5EEAD4;
+    --navy:#7C93B5; --shadow-card:0 1px 3px rgba(0,0,0,0.3);
+  }
+
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{height:100%;}
+  body{
+    background:var(--bg); color:var(--text); font-family:var(--font-body);
+    min-height:100vh; font-size:15px; line-height:1.5;
+  }
+  ::selection{background:rgba(14,142,130,0.2);}
+  h1,h2,h3{font-family:var(--font-display); font-weight:600; letter-spacing:-0.01em;}
+  button{font-family:inherit; cursor:pointer;}
+  input,select{font-family:inherit;}
+
+  /* ---------- Topbar ---------- */
+  .topbar{
+    display:flex; align-items:center; gap:16px; padding:18px 32px; border-bottom:1px solid var(--line);
+    background:var(--panel);
+  }
+  .topbar .brand{display:flex; align-items:center; gap:10px; font-family:var(--font-display); font-weight:700; font-size:17px;}
+  .topbar .brand img{height:26px; width:auto;}
+  .topbar .company{color:var(--muted); font-size:13px; margin-left:4px; padding-left:12px; border-left:1px solid var(--line);}
+  .topbar .spacer{flex:1;}
+  .topbar button, .topbar select{
+    background:var(--panel-2); border:1px solid var(--line); color:var(--text); font-size:12.5px;
+    padding:7px 12px; border-radius:8px;
+  }
+  .topbar button:hover{border-color:var(--signal);}
+
+  .wrap{max-width:880px; margin:0 auto; padding:48px 24px 80px;}
+
+  /* ---------- Auth screen ---------- */
+  .authWrap{min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px;}
+  .authCard{
+    width:100%; max-width:420px; background:var(--panel); border:1px solid var(--line); border-radius:16px;
+    padding:40px 36px; box-shadow:var(--shadow-card);
+  }
+  .authLogo{display:flex; align-items:center; gap:10px; justify-content:center; margin-bottom:8px;}
+  .authLogo img{height:34px; width:auto;}
+  .authLogo span{font-family:var(--font-display); font-weight:700; font-size:20px;}
+  .authTagline{text-align:center; color:var(--muted); font-size:13.5px; margin-bottom:32px; line-height:1.6;}
+  .authField{margin-bottom:14px;}
+  .authField label{display:block; font-size:12.5px; color:var(--muted); margin-bottom:6px; font-weight:500;}
+  .authField input{
+    width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text);
+    padding:11px 13px; border-radius:9px; font-size:14px; outline:none; transition:border-color .15s;
+  }
+  .authField input:focus{border-color:var(--signal);}
+  .authBtn{
+    width:100%; background:var(--navy); color:#fff; border:none; padding:12px; border-radius:9px;
+    font-size:14.5px; font-weight:600; margin-top:8px; transition:opacity .15s;
+  }
+  .authBtn:hover{opacity:0.9;}
+  .authSwitch{text-align:center; margin-top:20px; font-size:13px; color:var(--muted);}
+  .authSwitch a{color:var(--signal); font-weight:600; cursor:pointer; text-decoration:none;}
+  .authError{
+    background:rgba(194,31,69,0.08); border:1px solid rgba(194,31,69,0.25); color:var(--critical);
+    padding:10px 13px; border-radius:8px; font-size:12.5px; margin-bottom:14px; display:none;
+  }
+
+  /* ---------- Dashboard ---------- */
+  .pageHead{margin-bottom:28px;}
+  .pageHead h1{font-size:26px; margin-bottom:6px;}
+  .pageHead p{color:var(--muted); font-size:14px;}
+
+  .domainGrid{display:grid; grid-template-columns:repeat(auto-fill, minmax(240px,1fr)); gap:16px;}
+  .domainCard{
+    background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:22px;
+    cursor:pointer; transition:transform .15s, box-shadow .15s; box-shadow:var(--shadow-card);
+  }
+  .domainCard:hover{transform:translateY(-2px); box-shadow:0 4px 14px rgba(28,36,48,0.1);}
+  .domainCard .dcTop{display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;}
+  .domainCard .dcName{font-family:var(--font-mono); font-weight:600; font-size:13.5px; word-break:break-all;}
+  .domainCard .dcRing{width:56px; height:56px; flex-shrink:0;}
+  .domainCard .dcMeta{color:var(--muted); font-size:12px; display:flex; justify-content:space-between; align-items:center;}
+  .talonBadge{
+    display:inline-flex; align-items:center; gap:4px; background:rgba(14,142,130,0.1); color:var(--signal);
+    font-size:10px; font-weight:600; padding:3px 8px; border-radius:20px; letter-spacing:0.02em;
+  }
+  .addDomainCard{
+    background:var(--panel-2); border:1.5px dashed var(--line); border-radius:14px; padding:22px;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px;
+    cursor:pointer; color:var(--muted); font-size:13px; font-weight:500; min-height:130px; text-align:center;
+    transition:border-color .15s, color .15s;
+  }
+  .addDomainCard:hover{border-color:var(--signal); color:var(--signal);}
+  .addDomainCard .plus{font-size:28px; line-height:1;}
+
+  /* ---------- Detail view ---------- */
+  .backLink{display:inline-flex; align-items:center; gap:6px; color:var(--muted); font-size:13px; margin-bottom:20px; cursor:pointer; font-weight:500;}
+  .backLink:hover{color:var(--text);}
+  .detailHead{display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:8px; flex-wrap:wrap;}
+  .detailHead h1{font-family:var(--font-mono); font-size:22px; word-break:break-all;}
+  .detailActions{display:flex; gap:8px; flex-wrap:wrap;}
+  .btn{
+    background:var(--panel-2); border:1px solid var(--line); color:var(--text); padding:9px 15px;
+    border-radius:9px; font-size:13px; font-weight:500; transition:border-color .15s;
+  }
+  .btn:hover{border-color:var(--signal);}
+  .btn.primary{background:var(--navy); color:#fff; border:none;}
+  .btn.primary:hover{opacity:0.9;}
+  .btn:disabled{opacity:0.5; cursor:default;}
+
+  .vitalsSection{
+    background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:36px;
+    display:flex; align-items:center; gap:40px; margin:24px 0; box-shadow:var(--shadow-card); flex-wrap:wrap;
+  }
+  .vitalsRing{width:150px; height:150px; flex-shrink:0; position:relative;}
+  .vitalsRing .num{position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;}
+  .vitalsRing .num .score{font-family:var(--font-display); font-size:40px; font-weight:700; line-height:1;}
+  .vitalsRing .num .outof{font-size:11px; color:var(--muted); margin-top:2px;}
+  .vitalsText{flex:1; min-width:200px;}
+  .vitalsText .tier{font-family:var(--font-display); font-size:19px; font-weight:700; margin-bottom:6px; text-transform:capitalize;}
+  .vitalsText p{color:var(--muted); font-size:13.5px; line-height:1.6; max-width:420px;}
+  .sourceBadge{font-size:11.5px; color:var(--muted); margin-top:10px; display:flex; align-items:center; gap:5px;}
+
+  .sparkWrap{margin-top:18px;}
+  .sparkWrap svg{width:100%; height:44px; display:block;}
+
+  .sectionTitle{font-family:var(--font-display); font-size:17px; font-weight:600; margin:32px 0 14px;}
+
+  .catGrid{display:grid; grid-template-columns:repeat(auto-fill, minmax(160px,1fr)); gap:12px;}
+  .catCard{background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:16px; box-shadow:var(--shadow-card);}
+  .catCard .cName{font-size:12.5px; font-weight:600; margin-bottom:10px;}
+  .catCard .cTrack{height:6px; background:var(--panel-2); border-radius:4px; overflow:hidden; margin-bottom:6px;}
+  .catCard .cFill{height:100%; border-radius:4px;}
+  .catCard .cScore{font-family:var(--font-mono); font-size:12px; color:var(--muted);}
+
+  .actionList{display:flex; flex-direction:column; gap:10px;}
+  .actionCard{
+    background:var(--panel); border:1px solid var(--line); border-left:3px solid var(--critical);
+    border-radius:0 12px 12px 0; padding:16px 18px; box-shadow:var(--shadow-card);
+  }
+  .actionCard.ti{border-left-color:var(--critical); background:rgba(194,31,69,0.03);}
+  .actionCard .aTech{font-family:var(--font-mono); font-size:11px; color:var(--dim); margin-bottom:8px; line-height:1.5;}
+  .actionCard .aMeaning, .actionCard .aFix{font-size:13px; line-height:1.6; margin-top:6px;}
+  .actionCard .aMeaning b, .actionCard .aFix b{color:var(--text); font-weight:600;}
+  .allGoodCard{
+    background:rgba(30,158,90,0.06); border:1px solid rgba(30,158,90,0.25); border-radius:12px;
+    padding:20px; text-align:center; color:var(--clear); font-weight:600; font-size:14px;
+  }
+
+  .linkSection{
+    background:var(--panel-2); border:1px solid var(--line); border-radius:12px; padding:18px 20px; margin-top:32px;
+  }
+  .linkSection h3{font-size:14px; margin-bottom:6px;}
+  .linkSection p{color:var(--muted); font-size:12.5px; margin-bottom:12px; line-height:1.6;}
+  .linkRow{display:flex; gap:8px;}
+  .linkRow input{
+    flex:1; background:var(--panel); border:1px solid var(--line); color:var(--text); padding:9px 12px;
+    border-radius:8px; font-size:13px; outline:none;
+  }
+  .linkStatus{font-size:12.5px; margin-top:8px; min-height:16px;}
+
+  .emptyState{text-align:center; padding:60px 20px; color:var(--muted);}
+  .emptyState h2{color:var(--text); margin-bottom:8px;}
+
+  #printReport{display:none;}
+  @media print{
+    body *{visibility:hidden;}
+    #printReport, #printReport *{visibility:visible;}
+    #printReport{display:block; position:absolute; top:0; left:0; width:100%; background:#fff; color:#111; padding:28px;}
+    #printReport h1{font-family:Arial,sans-serif; font-size:20px; margin-bottom:4px;}
+    #printReport .prMeta{font-family:monospace; font-size:11px; color:#555; margin-bottom:18px;}
+    #printReport .prScore{font-size:15px; font-weight:bold; margin-bottom:14px;}
+    #printReport table{width:100%; border-collapse:collapse; margin-bottom:18px;}
+    #printReport th, #printReport td{border:1px solid #ccc; padding:6px 8px; font-size:11px; text-align:left;}
+    #printReport .prFinding{border:1px solid #ddd; border-left:3px solid #c21f45; padding:8px 10px; margin-bottom:8px; font-size:11px;}
+  }
+
+  @media(max-width:640px){
+    .topbar{padding:14px 18px;}
+    .wrap{padding:28px 16px 60px;}
+    .vitalsSection{padding:24px; gap:20px;}
+    .vitalsRing{width:110px; height:110px;}
+    .vitalsRing .num .score{font-size:30px;}
+  }
+</style>
+</head>
+<body>
+
+<div id="authScreen" class="authWrap">
+  <div class="authCard">
+    <div class="authLogo"><img src="logo-icon.png" alt=""><span>EAGLE EYE</span></div>
+    <p class="authTagline" data-i18n="auth_tagline">See your business the way an attacker does — and exactly what to fix.</p>
+    <div class="authError" id="authError"></div>
+    <div id="authFormLogin">
+      <div class="authField"><label data-i18n="email_label">Email</label><input type="email" id="loginEmail" autocomplete="username"></div>
+      <div class="authField"><label data-i18n="password_label">Password</label><input type="password" id="loginPassword" autocomplete="current-password"></div>
+      <button class="authBtn" id="loginBtn" data-i18n="login_btn">Log in</button>
+      <div class="authSwitch"><span data-i18n="no_account">Don't have an account?</span> <a id="showSignup" data-i18n="sign_up_link">Sign up</a></div>
+    </div>
+    <div id="authFormSignup" style="display:none;">
+      <div class="authField"><label data-i18n="company_label">Company name</label><input type="text" id="signupCompany"></div>
+      <div class="authField"><label data-i18n="email_label">Email</label><input type="email" id="signupEmail" autocomplete="username"></div>
+      <div class="authField"><label data-i18n="password_label">Password</label><input type="password" id="signupPassword" autocomplete="new-password"></div>
+      <button class="authBtn" id="signupBtn" data-i18n="signup_btn">Create account</button>
+      <div class="authSwitch"><span data-i18n="have_account">Already have an account?</span> <a id="showLogin" data-i18n="log_in_link">Log in</a></div>
+    </div>
+  </div>
+</div>
+
+<div id="appScreen" style="display:none;">
+  <div class="topbar">
+    <div class="brand"><img src="logo-icon.png" alt="">EAGLE EYE<span class="company" id="companyLabel"></span></div>
+    <div class="spacer"></div>
+    <select id="langSelect"><option value="en">EN</option><option value="ja">日本語</option></select>
+    <button id="themeToggleBtn" title="Toggle light/dark">◐</button>
+    <button id="logoutBtn" data-i18n="logout_btn">Log out</button>
+  </div>
+
+  <div class="wrap" id="dashboardView">
+    <div class="pageHead">
+      <h1 data-i18n="dashboard_h1">Your Domains</h1>
+      <p data-i18n="dashboard_sub">A running checkup of your public-facing security — plain language, no jargon.</p>
+    </div>
+    <div class="domainGrid" id="domainGrid"></div>
+  </div>
+
+  <div class="wrap" id="detailView" style="display:none;">
+    <div class="backLink" id="backToDashboard">← <span data-i18n="back_link">All domains</span></div>
+    <div class="detailHead">
+      <h1 id="detailDomainName">—</h1>
+      <div class="detailActions">
+        <button class="btn" id="removeDomainBtn" data-i18n="remove_domain_btn">Remove</button>
+        <button class="btn" id="pdfBtn" data-i18n="download_pdf_btn">⬇ Download report</button>
+        <button class="btn primary" id="rescanBtn" data-i18n="rescan_btn">Run new check</button>
+      </div>
+    </div>
+    <div id="detailBody"></div>
+  </div>
+</div>
+
+<div id="printReport"></div>
+
+<script>
+const API_BASE = (location.protocol === "file:" || location.port === "5501")
+  ? "http://localhost:8001"
+  : "";
+
+let TOKEN = localStorage.getItem('eagle_eye_token') || null;
+let ACCOUNT = JSON.parse(localStorage.getItem('eagle_eye_account') || 'null');
+let LANG = localStorage.getItem('eagle_eye_lang') || 'en';
+let THEME = localStorage.getItem('eagle_eye_theme') || 'light';
+let CURRENT_DOMAINS = [];
+let CURRENT_DETAIL_DOMAIN = null;
+
+const TIER_COLOR = {clear:"var(--clear)", watch:"var(--watch)", high:"var(--high)", critical:"var(--critical)"};
+const TIER_JA = {clear:"安全", watch:"注意", high:"高リスク", critical:"重大"};
+
+const STR = {
+  en: {
+    auth_tagline:"See your business the way an attacker does — and exactly what to fix.",
+    email_label:"Email", password_label:"Password", company_label:"Company name",
+    login_btn:"Log in", signup_btn:"Create account",
+    no_account:"Don't have an account?", sign_up_link:"Sign up",
+    have_account:"Already have an account?", log_in_link:"Log in",
+    logout_btn:"Log out",
+    dashboard_h1:"Your Domains",
+    dashboard_sub:"A running checkup of your public-facing security — plain language, no jargon.",
+    back_link:"All domains",
+    remove_domain_btn:"Remove", download_pdf_btn:"⬇ Download report", rescan_btn:"Run new check",
+    add_domain_card:"+ Add a domain",
+    empty_dashboard_h:"Let's check your first domain",
+    empty_dashboard_p:"Add your company's website and we'll run a full passive security checkup — no installation, nothing to configure.",
+    add_domain_placeholder:"yourcompany.com",
+    add_domain_confirm:"Add",
+    never_scanned:"Not checked yet",
+    days_ago:n=>n===0?"today":`${n} day${n===1?'':'s'} ago`,
+    vitals_intro:{
+      clear:"Nice work — your public-facing security looks solid right now.",
+      watch:"A few things are worth a look, but nothing urgent.",
+      high:"Several issues need attention — see below for exactly what to do.",
+      critical:"Serious issues found — these should be addressed as soon as possible.",
+    },
+    source_talon:"Synced from your Eagle Talon operator",
+    source_eye:"Checked directly by Eagle Eye",
+    sect_categories:"How each area scored",
+    sect_actions:"What to fix, in order",
+    all_good:"No issues found in this check. Nice work!",
+    link_h:"Linked to an operator?",
+    link_p:"If a company managing your risk (an insurer, a partner) already checks this domain in Eagle Talon, link it here to see their latest result instead of running your own.",
+    link_placeholder:"Eagle Talon client ID",
+    link_btn:"Link",
+    link_success:score=>`Linked — showing a score of ${score} from Eagle Talon.`,
+    link_failed:"Couldn't find that domain under that client ID — check with your operator.",
+    linked_badge:"Synced with Eagle Talon",
+    scanning:"Running your checkup — this takes a few seconds…",
+    scan_failed:"Couldn't complete the check — try again in a moment.",
+    remove_confirm:name=>`Remove ${name} from your dashboard? This won't delete anything from Eagle Talon if it's linked.`,
+    what_it_means:"What this means", how_to_fix:"How to fix it",
+    report_title:"Eagle Eye — Security Checkup Report",
+    report_generated:"Generated", report_overall:"Overall score",
+    report_category:"Area", report_score:"Score", report_findings:"Findings & Fixes",
+    report_none:"No issues found in this check.",
+    report_footer:"Based on a passive, non-intrusive security checkup of publicly available information.",
+  },
+  ja: {
+    auth_tagline:"攻撃者から見た自社の姿を確認し、対応すべきことを明確に。",
+    email_label:"メールアドレス", password_label:"パスワード", company_label:"会社名",
+    login_btn:"ログイン", signup_btn:"アカウントを作成",
+    no_account:"アカウントをお持ちでない方は", sign_up_link:"新規登録",
+    have_account:"すでにアカウントをお持ちの方は", log_in_link:"ログイン",
+    logout_btn:"ログアウト",
+    dashboard_h1:"あなたのドメイン",
+    dashboard_sub:"公開されている自社セキュリティの継続チェック — 専門用語なしで分かりやすく。",
+    back_link:"すべてのドメイン",
+    remove_domain_btn:"削除", download_pdf_btn:"⬇ レポートをダウンロード", rescan_btn:"新しくチェックする",
+    add_domain_card:"＋ ドメインを追加",
+    empty_dashboard_h:"最初のドメインをチェックしましょう",
+    empty_dashboard_p:"自社のWebサイトを追加すると、パッシブなセキュリティチェックを実行します。インストールや設定は一切不要です。",
+    add_domain_placeholder:"yourcompany.com",
+    add_domain_confirm:"追加",
+    never_scanned:"まだチェックされていません",
+    days_ago:n=>n===0?"本日":`${n}日前`,
+    vitals_intro:{
+      clear:"順調です — 現在、公開されているセキュリティ状況は良好です。",
+      watch:"いくつか確認すべき点がありますが、緊急のものはありません。",
+      high:"対応が必要な問題が複数あります。下記で具体的な対応方法をご確認ください。",
+      critical:"重大な問題が見つかりました。できるだけ早く対応することをおすすめします。",
+    },
+    source_talon:"Eagle Talon運用者からの同期データ",
+    source_eye:"Eagle Eyeによる直接チェック",
+    sect_categories:"各分野のスコア",
+    sect_actions:"対応すべきこと（優先順）",
+    all_good:"このチェックでは問題は見つかりませんでした。順調です！",
+    link_h:"運用者と連携していますか？",
+    link_p:"保険会社やパートナーなど、あなたのリスクを管理する企業がすでにEagle Talonでこのドメインをチェックしている場合、ここで連携すると、自分でチェックする代わりに最新の結果を確認できます。",
+    link_placeholder:"Eagle Talon クライアントID",
+    link_btn:"連携する",
+    link_success:score=>`連携しました — Eagle Talon のスコア ${score} を表示しています。`,
+    link_failed:"そのクライアントIDでこのドメインが見つかりませんでした。運用者にご確認ください。",
+    linked_badge:"Eagle Talonと連携中",
+    scanning:"チェックを実行中です — 数秒お待ちください…",
+    scan_failed:"チェックを完了できませんでした。少し時間をおいて再度お試しください。",
+    remove_confirm:name=>`${name} をダッシュボードから削除しますか？Eagle Talonと連携している場合でも、Talon側のデータは削除されません。`,
+    what_it_means:"これはどういう意味か", how_to_fix:"対応方法",
+    report_title:"Eagle Eye — セキュリティチェックレポート",
+    report_generated:"生成日時", report_overall:"総合スコア",
+    report_category:"項目", report_score:"スコア", report_findings:"検出項目と対応方法",
+    report_none:"このチェックでは問題は見つかりませんでした。",
+    report_footer:"公開されている情報に基づく、パッシブ（非侵襲的）なセキュリティチェックの結果です。",
+  },
+};
+function t(key){ return STR[LANG][key]; }
+
+const CATEGORY_JA = {
+  email_security:"メールセキュリティ", tls:"TLS／証明書", web_hardening:"Webハードニング",
+  exposure:"露出面", reputation:"ドメイン評価", threat_intel:"脅威インテリジェンス",
+  cve_exposure:"既知の脆弱性",
+};
+const FINDING_JA = {
+  no_spf: ()=>"SPFレコードが存在しません — From/Return-Pathを詐称される可能性があります。",
+  no_dmarc: ()=>"DMARCレコードが存在しません — なりすましメールを強制的に防ぐ仕組みがありません。",
+  dmarc_none: ()=>"DMARCポリシーが「none」です — 監視のみで強制力はありません。",
+  no_dkim: ()=>"一般的なセレクターの範囲内でDKIMが見つかりませんでした（簡易チェックのため断定はできません）。",
+  tls_failed: p=>`TLSハンドシェイクに失敗しました：${p.error}`,
+  self_signed: ()=>"証明書が自己署名、または信頼されていません。",
+  cert_expired: ()=>"証明書はすでに期限切れです。",
+  cert_expiring: p=>`証明書はあと${p.days}日で期限切れになります。`,
+  legacy_tls: p=>`古いプロトコル ${p.protocol} が使用されています。`,
+  unreachable: ()=>"HTTP(S)でサイトに到達できないため、採点対象外です。",
+  missing_headers: p=>`不足しているセキュリティヘッダー：${(p.headers||[]).join(', ')}`,
+  large_surface: p=>`証明書上で確認できるサブドメインが${p.count}件 — 露出面が大きい状態です。`,
+  some_surface: p=>`証明書上で確認できるサブドメインが${p.count}件あります。`,
+  no_mx: ()=>"MXレコードが見つかりません（意図的な設定の可能性もあります）。",
+  very_new_domain: p=>`ドメイン登録からわずか${p.age}日 — 詐欺・フィッシングによく見られる兆候です。`,
+  new_domain: p=>`ドメイン登録から1年未満です（${p.age}日）。`,
+  age_unknown: ()=>"RDAPから登録年数を取得できませんでした。",
+  urlhaus_hit: p=>`このホストには、マルウェア配布に関する報告が${p.count}件あります（URLhaus）。`,
+  cve_detected: p=>`${p.tech} ${p.version}：${p.cve_id}（${p.severity}）— ${p.summary}`,
+};
+
+// ---------- Plain-language remediation (part 4: "what it means" / "how to fix") ----------
+const REMEDIATION = {
+  no_spf: {
+    en:{meaning:"A hacker can send phishing emails that look like they came from this exact domain — no spoofing tricks needed, just a normal email with the From address forged. Employees, customers, or partners have no technical way to tell it's fake.",
+        fix:"Publish an SPF TXT record listing your legitimate mail servers (e.g. your email provider's include). Most providers give you the exact line to add."},
+    ja:{meaning:"ハッカーは、このドメインから送られたように見えるフィッシングメールを送信できます。特別な偽装技術は不要で、From欄を偽装した通常のメールを送るだけです。従業員・顧客・取引先には、それが偽物だと技術的に見分ける手段がありません。",
+        fix:"正規のメールサーバーを記載したSPF TXTレコードを公開してください。多くのメールプロバイダーが追加すべき正確な設定値を提供しています。"},
+  },
+  no_dmarc: {
+    en:{meaning:"A hacker's spoofed email sails straight into inboxes — there's no policy telling Gmail, Outlook, etc. to quarantine or reject mail that fails authentication, so forged messages get the same treatment as legitimate ones.",
+        fix:"Add a DMARC TXT record at _dmarc.yourdomain.com. Start with p=none to monitor, then move to p=quarantine or p=reject once you've confirmed legitimate mail passes."},
+    ja:{meaning:"ハッカーが送った偽装メールは、そのまま受信箱に届いてしまいます。認証に失敗したメールを隔離・拒否するよう指示するポリシーが存在しないため、偽装メールも正規メールと同じ扱いを受けます。",
+        fix:"_dmarc.yourdomain.com にDMARCのTXTレコードを追加してください。まずは p=none で監視を開始し、正規のメールが問題なく届くことを確認してから p=quarantine または p=reject へ移行しましょう。"},
+  },
+  dmarc_none: {
+    en:{meaning:"A hacker's spoofed email still gets delivered — DMARC is watching and logging it, but nothing actually blocks it from landing in someone's inbox.",
+        fix:"Once you've reviewed DMARC reports and confirmed legitimate mail sources, change the policy to p=quarantine (or p=reject for full enforcement)."},
+    ja:{meaning:"ハッカーが送った偽装メールも、依然として配信されてしまいます。DMARCは監視・記録はしていますが、実際に受信箱への到達をブロックする力はありません。",
+        fix:"DMARCレポートを確認し、正規のメール送信元を把握したうえで、ポリシーを p=quarantine（または完全に遮断する p=reject）に変更してください。"},
+  },
+  no_dkim: {
+    en:{meaning:"A hacker positioned on the network path (or a compromised relay) could tamper with outgoing mail content in transit without detection, since there's no cryptographic signature proving the message wasn't altered after it left this domain's servers.",
+        fix:"Enable DKIM signing in your email provider's admin console and publish the resulting selector's public key as a DNS TXT record."},
+    ja:{meaning:"ネットワーク経路上に位置するハッカー（または侵害された中継サーバー）は、送信メールの内容を検知されずに改ざんできる可能性があります。このドメインのサーバーを離れた後にメッセージが改ざんされていないことを証明する暗号署名がないためです。",
+        fix:"メールプロバイダーの管理画面でDKIM署名を有効にし、発行されたセレクターの公開鍵をDNSのTXTレコードとして公開してください。"},
+  },
+  tls_failed: {
+    en:{meaning:"A hacker doesn't even need to do anything here — the site is already failing to offer visitors a secure connection, so any data submitted (if it loads at all) could potentially be intercepted or tampered with in transit.",
+        fix:"Check that a valid TLS certificate is installed and the web server is listening on port 443. A misconfigured or expired cert is the most common cause."},
+    ja:{meaning:"ハッカーが何かをする以前の問題として、このサイトは訪問者に安全な接続を提供できていません。仮にページが表示されたとしても、送信されたデータが通信経路上で傍受・改ざんされる可能性があります。",
+        fix:"有効なTLS証明書が導入されているか、Webサーバーが443番ポートで待ち受けているかを確認してください。証明書の設定ミスや期限切れが最も多い原因です。"},
+  },
+  self_signed: {
+    en:{meaning:"A hacker running a man-in-the-middle attack (e.g. on public wifi) looks identical to this site from a visitor's perspective — since browsers already can't verify this certificate is legitimate, a fake one substituted by an attacker raises the same warning, training users to click through and ignore it.",
+        fix:"Replace it with a certificate from a trusted CA. Let's Encrypt provides free, automatically-renewing certificates if cost is a concern."},
+    ja:{meaning:"公共Wi-Fiなどで中間者攻撃を行うハッカーは、訪問者から見てこのサイトと見分けがつきません。ブラウザはこの証明書が正当なものか検証できないため、攻撃者が偽の証明書にすり替えても同じ警告しか出ず、結果としてユーザーは警告を無視してクリックすることに慣れてしまいます。",
+        fix:"信頼されたCAが発行する証明書に置き換えてください。コストが気になる場合は、無料で自動更新されるLet's Encryptの利用がおすすめです。"},
+  },
+  cert_expired: {
+    en:{meaning:"A hacker doesn't need to attack this directly — it's already broken. Visitors are blocked or trained to click through security warnings to reach the site at all, which is exactly the muscle memory a real phishing attack later exploits.",
+        fix:"Renew the certificate immediately. If this is unexpected, check whether automatic renewal (e.g. via Let's Encrypt/certbot) has silently stopped working."},
+    ja:{meaning:"ハッカーが直接攻撃するまでもなく、すでに壊れている状態です。訪問者はサイトにアクセスするために警告をブロックされるか、警告を無視してクリックする習慣がついてしまいます。これはまさに、後の本物のフィッシング攻撃で悪用される「クセ」そのものです。",
+        fix:"直ちに証明書を更新してください。想定外の場合は、自動更新（Let's Encrypt／certbotなど）が気づかないうちに停止していないか確認しましょう。"},
+  },
+  cert_expiring: {
+    en:{meaning:"Once this lapses, a hacker gets the same opening described above (broken trust, users trained to click through warnings) — the clock is just running on when, not if, unless it's renewed first.",
+        fix:"Renew now rather than waiting. If renewal is automated, verify the automation actually ran and didn't silently fail."},
+    ja:{meaning:"期限が切れた瞬間、上記と同じ状況（信頼の破綻、警告を無視する習慣づけ）がハッカーにとっての付け入る隙となります。更新しない限り、それは「もし」ではなく「いつ」の問題です。",
+        fix:"期限が来る前に更新してください。自動更新を設定している場合は、実際に正常に実行されているか確認しましょう。"},
+  },
+  legacy_tls: {
+    en:{meaning:"A hacker with network-level access can potentially force or exploit this outdated protocol to weaken or break the encryption on a connection — these versions have publicly documented cryptographic flaws, which is exactly why browsers and payment networks are actively dropping support for them.",
+        fix:"Disable TLS 1.0/1.1 in the web server config and require TLS 1.2 or 1.3 only. Most web servers support this with a one-line config change."},
+    ja:{meaning:"ネットワークレベルのアクセス権を持つハッカーは、この古いプロトコルを悪用して接続の暗号化を弱体化・突破できる可能性があります。これらのバージョンには公開済みの暗号的欠陥があり、だからこそブラウザや決済ネットワークが対応を打ち切りつつあるのです。",
+        fix:"Webサーバーの設定でTLS 1.0/1.1を無効化し、TLS 1.2または1.3のみを許可してください。多くのWebサーバーでは設定を1行変更するだけで対応できます。"},
+  },
+  unreachable: {
+    en:{meaning:"No direct exposure here — if a hacker can't reach it either, it isn't attackable through this path right now. Worth confirming it's actually intentional rather than an accidental outage nobody noticed.",
+        fix:"Confirm the site is actually up from a normal browser. If it's intentionally not web-hosted (e.g. mail-only domain), this can be disregarded."},
+    ja:{meaning:"直接的な露出はありません — ハッカーもこの経路からアクセスできないのであれば、現時点でこの経路は攻撃対象にはなりません。誰も気づかないまま偶発的にダウンしているだけでないか、意図的な状態か確認する価値はあります。",
+        fix:"通常のブラウザで実際にサイトが表示されるか確認してください。意図的にWebサイトを持たない場合（メール専用ドメインなど）は無視して構いません。"},
+  },
+  missing_headers: {
+    en:{meaning:"A hacker can more easily pull off clickjacking (embedding this site invisibly in their own page to hijack clicks), content injection, or protocol-downgrade tricks against visitors — these headers are exactly what closes those doors, and they're not doing that job right now.",
+        fix:"Add the missing headers in your web server or CDN config (e.g. Strict-Transport-Security, Content-Security-Policy). Most CDNs and frameworks offer these as simple config toggles."},
+    ja:{meaning:"ハッカーは、クリックジャッキング（このサイトを自分のページに見えない形で埋め込み、クリックを乗っ取る手法）、コンテンツインジェクション、プロトコルのダウングレード攻撃などを訪問者に対してより容易に仕掛けられます。これらのヘッダーはまさにそうした手口を防ぐためのものですが、現在その役割を果たしていません。",
+        fix:"Webサーバーまたは CDN の設定で不足しているヘッダー（Strict-Transport-Security、Content-Security-Policyなど）を追加してください。多くのCDNやフレームワークでは簡単な設定変更で有効化できます。"},
+  },
+  large_surface: {
+    en:{meaning:"A hacker gets a large map of potential entry points for free — every subdomain is a chance to find something forgotten, unpatched, or misconfigured. Attackers specifically hunt for exactly this kind of sprawl because forgotten subdomains are one of the most common ways into a network.",
+        fix:"Inventory all subdomains, decommission anything no longer in use, and make sure everything remaining is patched and monitored — not just the main domain."},
+    ja:{meaning:"ハッカーは、潜在的な侵入口の広範な地図を労せず手に入れることになります。すべてのサブドメインが、放置・未パッチ・設定ミスを発見するチャンスです。攻撃者はまさにこの種の「広がりすぎた状態」を狙っています。忘れられたサブドメインは、ネットワークへの侵入経路として最も一般的な手口の一つだからです。",
+        fix:"すべてのサブドメインを棚卸しし、使われていないものは廃止してください。残すものについても、メインドメインだけでなくすべてパッチ適用・監視の対象にしましょう。"},
+  },
+  some_surface: {
+    en:{meaning:"A hacker has a moderate number of extra doors to check for weaknesses — not alarming on its own, but every subdomain here is one more place that needs to be kept patched and monitored, not just the main site.",
+        fix:"Review the subdomain list occasionally and retire anything that's no longer needed."},
+    ja:{meaning:"ハッカーが弱点を探せる「別の入口」がある程度存在する状態です。それ自体は深刻ではありませんが、ここにある各サブドメインは、メインサイトと同様にパッチ適用と監視が必要な対象が一つ増えていることを意味します。",
+        fix:"サブドメインの一覧を定期的に見直し、不要になったものは廃止してください。"},
+  },
+  no_mx: {
+    en:{meaning:"Nothing exploitable here from an attacker's side — this domain simply can't receive email, which closes off an entire category of email-based attack rather than opening one.",
+        fix:"No action needed if this domain isn't meant to receive email. If it should, add MX records pointing to your mail provider."},
+    ja:{meaning:"攻撃者にとって悪用できる要素はありません。このドメインはそもそもメールを受信できないため、メール経由の攻撃の一分野そのものが成立しません。",
+        fix:"このドメインでメールを受信する予定がなければ対応不要です。受信が必要な場合は、メールプロバイダーを指すMXレコードを追加してください。"},
+  },
+  very_new_domain: {
+    en:{meaning:"This is the single strongest pattern behind real fraud infrastructure: a hacker running a phishing or scam operation almost always registers the domain right before using it, since older domains are more expensive to acquire and burn. A brand-new domain showing up in a supplier/seller/insured relationship deserves scrutiny — not automatic rejection, but a real second look.",
+        fix:"Verify the business relationship through an independent channel (not links/contacts provided by the domain itself) before proceeding with anything sensitive."},
+    ja:{meaning:"これは、実際の詐欺インフラの背後にある最も強力なパターンです。フィッシングや詐欺を行うハッカーは、使用する直前にドメインを登録することがほとんどです。古いドメインは取得・使い捨てのコストが高いためです。取引先・出品者・被保険者との関係に新規登録ドメインが登場した場合、即座に拒否する必要はありませんが、しっかりとした再確認が必要です。",
+        fix:"そのドメイン自身が提供するリンクや連絡先ではなく、独立した経路を通じて取引関係の実在性を確認してから、機微な対応を進めてください。"},
+  },
+  new_domain: {
+    en:{meaning:"Not a hacker-specific signal on its own — plenty of legitimate businesses launch new domains. But it's the same raw material fraud infrastructure is built from, so it's worth weighing alongside other findings rather than in isolation.",
+        fix:"No specific action required — treat as one data point among several, and re-check as the domain ages."},
+    ja:{meaning:"これ単体ではハッカー特有のシグナルではありません。正当な企業が新しいドメインを立ち上げることも数多くあります。ただし、詐欺インフラも同じ「材料」から作られるため、単独ではなく他の検出項目と合わせて評価する価値があります。",
+        fix:"特別な対応は不要です。他の情報と合わせた一つの判断材料として扱い、時間の経過とともに再確認してください。"},
+  },
+  age_unknown: {
+    en:{meaning:"No signal either way — this doesn't tell you anything about what a hacker could or couldn't do, it just means one data source came back empty.",
+        fix:"Not actionable by itself. If registration age matters for this decision, check directly with the registrar or try again later."},
+    ja:{meaning:"どちらの方向にもシグナルはありません。ハッカーが何をできる／できないかについて、この項目自体は何も語っていません。単に一つの情報源が空だったというだけです。",
+        fix:"これ単体では対応不要です。登録年数が判断上重要な場合は、レジストラに直接確認するか、後で再度お試しください。"},
+  },
+  urlhaus_hit: {
+    en:{meaning:"This isn't a theoretical risk — a hacker has already used this exact host to distribute malware, and it's documented. Anyone who trusted this domain (an employee opening a link, a customer downloading a file) during that window may have been served malicious content directly.",
+        fix:"Treat this as high priority. If this is a third party (supplier/seller/insured), pause the relationship pending their explanation, and verify whether the compromise is ongoing or historical."},
+    ja:{meaning:"これは理論上のリスクではありません。ハッカーはすでにこのホストを実際にマルウェア配布に使用しており、それが記録として残っています。その期間中にこのドメインを信頼した人（リンクを開いた従業員、ファイルをダウンロードした顧客など）は、悪意あるコンテンツを直接受け取った可能性があります。",
+        fix:"最優先で対応してください。取引先（サプライヤー・出品者・被保険者）の場合は、説明を受けるまで関係を一時停止し、侵害が現在も継続しているか過去のものかを確認してください。"},
+  },
+  cve_detected: {
+    en:{meaning:"A hacker who finds this same version string can look up this exact CVE and, depending on severity, potentially use a public proof-of-concept exploit against it — for a CRITICAL/HIGH finding this is often a matter of running an existing tool, not custom research. That said, this is a signal to verify, not proof of an active hole: vendors sometimes patch without changing the version number, so confirm before treating it as confirmed-exploitable.",
+        fix:"Confirm directly with whoever runs this system whether this specific CVE has been patched (backport or otherwise), not just whether the software has been 'updated' generally. If it's a third party, ask them directly rather than assuming from the version string alone. If genuinely unpatched, prioritize by severity — critical/high findings first."},
+    ja:{meaning:"同じバージョン文字列を見つけたハッカーは、この特定のCVEを調べ、深刻度によっては公開されている実証コード（PoC）を使って攻撃できる可能性があります。CRITICAL／HIGHの場合、これは独自の調査ではなく、既存のツールを実行するだけで済んでしまうことも珍しくありません。ただし、これは確認すべきシグナルであって、実際に穴が開いている証拠ではありません。ベンダーがバージョン番号を変えずにパッチを当てている場合もあるため、「確実に悪用可能」と決めつける前に確認してください。",
+        fix:"このシステムの運用者に、ソフトウェアが「更新されているか」ではなく、この特定のCVEが（バックポートを含めて）対応済みかどうかを直接確認してください。取引先の場合は、バージョン文字列だけで判断せず、直接問い合わせてください。実際に未対応であれば、深刻度の高いもの（Critical／High）から優先的に対応してください。"},
+  },
+};
+
+function tTier(tier){ return LANG==="ja" ? (TIER_JA[tier]||tier) : (tier.charAt(0).toUpperCase()+tier.slice(1)); }
+
+function applyStaticI18n(){
+  document.querySelectorAll('[data-i18n]').forEach(el=>{
+    const key = el.getAttribute('data-i18n');
+    if(STR[LANG][key] !== undefined && typeof STR[LANG][key] === 'string') el.textContent = STR[LANG][key];
+  });
+  document.documentElement.lang = LANG;
+}
+
+function setTheme(theme){
+  THEME = theme;
+  localStorage.setItem('eagle_eye_theme', theme);
+  document.documentElement.setAttribute('data-theme', theme);
+  document.getElementById('themeToggleBtn').textContent = theme==='dark' ? '◐' : '◑';
+}
+document.getElementById('themeToggleBtn').onclick = ()=> setTheme(THEME==='light'?'dark':'light');
+
+document.getElementById('langSelect').onchange = (e)=>{
+  LANG = e.target.value;
+  localStorage.setItem('eagle_eye_lang', LANG);
+  applyStaticI18n();
+  if(document.getElementById('detailView').style.display !== 'none') openDetail(CURRENT_DETAIL_DOMAIN);
+  else renderDashboard();
+};
+
+async function api(path, opts={}){
+  const headers = opts.headers || {};
+  if(TOKEN) headers['Authorization'] = `Bearer ${TOKEN}`;
+  if(opts.body) headers['Content-Type'] = 'application/json';
+  const res = await fetch(`${API_BASE}${path}`, {...opts, headers});
+  const data = await res.json().catch(()=>({}));
+  if(!res.ok) throw new Error(data.detail || `Request failed (${res.status})`);
+  return data;
+}
+
+// ---------- Auth ----------
+document.getElementById('showSignup').onclick = ()=>{
+  document.getElementById('authFormLogin').style.display = 'none';
+  document.getElementById('authFormSignup').style.display = 'block';
+  document.getElementById('authError').style.display = 'none';
+};
+document.getElementById('showLogin').onclick = ()=>{
+  document.getElementById('authFormSignup').style.display = 'none';
+  document.getElementById('authFormLogin').style.display = 'block';
+  document.getElementById('authError').style.display = 'none';
+};
+
+function showAuthError(msg){
+  const el = document.getElementById('authError');
+  el.textContent = msg; el.style.display = 'block';
+}
+
+document.getElementById('loginBtn').onclick = async ()=>{
+  const email = document.getElementById('loginEmail').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  try{
+    const data = await api('/api/login', {method:'POST', body: JSON.stringify({email, password})});
+    TOKEN = data.token; ACCOUNT = data.account;
+    localStorage.setItem('eagle_eye_token', TOKEN);
+    localStorage.setItem('eagle_eye_account', JSON.stringify(ACCOUNT));
+    enterApp();
+  }catch(e){ showAuthError(e.message); }
+};
+
+document.getElementById('signupBtn').onclick = async ()=>{
+  const company_name = document.getElementById('signupCompany').value.trim();
+  const email = document.getElementById('signupEmail').value.trim();
+  const password = document.getElementById('signupPassword').value;
+  try{
+    const data = await api('/api/signup', {method:'POST', body: JSON.stringify({email, password, company_name})});
+    TOKEN = data.token; ACCOUNT = data.account;
+    localStorage.setItem('eagle_eye_token', TOKEN);
+    localStorage.setItem('eagle_eye_account', JSON.stringify(ACCOUNT));
+    enterApp();
+  }catch(e){ showAuthError(e.message); }
+};
+
+document.getElementById('logoutBtn').onclick = ()=>{
+  TOKEN = null; ACCOUNT = null;
+  localStorage.removeItem('eagle_eye_token'); localStorage.removeItem('eagle_eye_account');
+  document.getElementById('appScreen').style.display = 'none';
+  document.getElementById('authScreen').style.display = 'flex';
+};
+
+function enterApp(){
+  document.getElementById('authScreen').style.display = 'none';
+  document.getElementById('appScreen').style.display = 'block';
+  document.getElementById('companyLabel').textContent = ACCOUNT.company_name || ACCOUNT.email;
+  renderDashboard();
+}
+
+// ---------- Ring gauge (small, for cards) ----------
+function ringSvg(score, size, strokeWidth, color){
+  const r = (size - strokeWidth) / 2;
+  const c = 2 * Math.PI * r;
+  const dash = c * ((score||0) / 100);
+  return `<svg viewBox="0 0 ${size} ${size}" width="${size}" height="${size}">
+    <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="var(--line)" stroke-width="${strokeWidth}"/>
+    <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="${color}" stroke-width="${strokeWidth}"
+      stroke-dasharray="${dash} ${c}" stroke-linecap="round" transform="rotate(-90 ${size/2} ${size/2})"/>
+  </svg>`;
+}
+
+function daysAgoText(iso){
+  if(!iso) return t('never_scanned');
+  const days = Math.round((Date.now() - new Date(iso)) / 86400000);
+  return t('days_ago')(Math.max(0,days));
+}
+
+// ---------- Dashboard ----------
+async function renderDashboard(){
+  document.getElementById('dashboardView').style.display = 'block';
+  document.getElementById('detailView').style.display = 'none';
+  const grid = document.getElementById('domainGrid');
+  grid.innerHTML = `<div style="color:var(--muted); font-size:13px;">…</div>`;
+
+  try{
+    const data = await api('/api/domains');
+    CURRENT_DOMAINS = data.domains;
+  }catch(e){
+    CURRENT_DOMAINS = [];
+  }
+
+  if(CURRENT_DOMAINS.length === 0){
+    grid.innerHTML = `<div class="emptyState" style="grid-column:1/-1;">
+      <h2>${t('empty_dashboard_h')}</h2>
+      <p style="max-width:420px; margin:0 auto 24px;">${t('empty_dashboard_p')}</p>
+      <div style="max-width:360px; margin:0 auto; display:flex; gap:8px;">
+        <input id="firstDomainInput" placeholder="${t('add_domain_placeholder')}" style="flex:1; background:var(--panel); border:1px solid var(--line); padding:11px 13px; border-radius:9px; font-size:14px; outline:none;">
+        <button class="btn primary" id="firstDomainBtn">${t('add_domain_confirm')}</button>
+      </div>
+    </div>`;
+    document.getElementById('firstDomainBtn').onclick = ()=>addDomain(document.getElementById('firstDomainInput').value);
+    return;
+  }
+
+  const cards = CURRENT_DOMAINS.map(d=>{
+    const color = d.overall_score==null ? 'var(--dim)' : TIER_COLOR[d.tier];
+    const scoreText = d.overall_score==null ? '—' : Math.round(d.overall_score);
+    const talonBadge = d.linked_talon_client_id ? `<span class="talonBadge">🔗 ${t('linked_badge')}</span>` : '';
+    return `<div class="domainCard" data-domain="${d.domain}">
+      <div class="dcTop">
+        <div class="dcName">${d.domain}</div>
+        <div class="dcRing">${ringSvg(d.overall_score||0, 56, 6, color)}</div>
+      </div>
+      <div class="dcMeta"><span>${daysAgoText(d.last_scanned)}</span>${talonBadge}</div>
+    </div>`;
+  }).join('') + `<div class="addDomainCard" id="addDomainCardBtn"><div class="plus">+</div>${t('add_domain_card')}</div>`;
+
+  grid.innerHTML = cards;
+  grid.querySelectorAll('.domainCard').forEach(card=>{
+    card.onclick = ()=> openDetail(card.dataset.domain);
+  });
+  document.getElementById('addDomainCardBtn').onclick = ()=>{
+    const domain = prompt(t('add_domain_placeholder') + ' ?');
+    if(domain) addDomain(domain);
+  };
+}
+
+async function addDomain(domain){
+  domain = (domain||'').trim();
+  if(!domain) return;
+  try{
+    await api('/api/domains', {method:'POST', body: JSON.stringify({domain})});
+    await renderDashboard();
+  }catch(e){ alert(e.message); }
+}
+
+function tFinding(f){
+  if(typeof f === "string") return f;
+  if(LANG==="en") return f.en;
+  const fn = FINDING_JA[f.code];
+  return fn ? fn(f.params||{}) : f.en;
+}
+function tCategory(cat){ return LANG==="ja" ? (CATEGORY_JA[cat.code]||cat.name) : cat.name; }
+function tRemediation(f){
+  const r = REMEDIATION[f.code];
+  if(!r) return null;
+  return LANG==="ja" ? r.ja : r.en;
+}
+
+// ---------- Detail view ----------
+async function openDetail(domain){
+  CURRENT_DETAIL_DOMAIN = domain;
+  document.getElementById('dashboardView').style.display = 'none';
+  document.getElementById('detailView').style.display = 'block';
+  document.getElementById('detailDomainName').textContent = domain;
+  document.getElementById('detailBody').innerHTML = `<p style="color:var(--muted);">${t('scanning')}</p>`;
+
+  let latest = null, history = [], talonClientId = null;
+  const domainMeta = CURRENT_DOMAINS.find(d=>d.domain===domain);
+  talonClientId = domainMeta ? domainMeta.linked_talon_client_id : null;
+
+  try{ latest = await api(`/api/domains/${encodeURIComponent(domain)}/latest`); }catch(e){ latest = null; }
+  try{ const h = await api(`/api/domains/${encodeURIComponent(domain)}/history`); history = h.history; }catch(e){ history = []; }
+
+  renderDetailBody(domain, latest, history, talonClientId);
+}
+
+function renderDetailBody(domain, latest, history, talonClientId){
+  const body = document.getElementById('detailBody');
+
+  if(!latest){
+    body.innerHTML = `<div class="emptyState">
+      <h2>${t('empty_dashboard_h')}</h2>
+      <p style="max-width:400px; margin:0 auto;">${LANG==='ja'?'まだチェックが実行されていません。上の「新しくチェックする」を押してください。':"No check has run yet — click \"Run new check\" above to get started."}</p>
+    </div>`;
+    return;
+  }
+
+  const score = Math.round(latest.overall_score);
+  const color = TIER_COLOR[latest.tier];
+  const sourceText = latest._source === 'talon' ? t('source_talon') : t('source_eye');
+  const sparkline = history.length > 1 ? renderSparkline(history) : '';
+
+  const catCards = (latest.categories||[]).map(c=>{
+    const sc = Math.round(c.score);
+    const cColor = sc>=80?'var(--clear)': sc>=60?'var(--watch)': sc>=35?'var(--high)':'var(--critical)';
+    return `<div class="catCard">
+      <div class="cName">${tCategory(c)}</div>
+      <div class="cTrack"><div class="cFill" style="width:${sc}%; background:${cColor}"></div></div>
+      <div class="cScore">${sc}/100</div>
+    </div>`;
+  }).join('');
+
+  const findings = (latest.categories||[]).flatMap(c=>c.findings||[]);
+  const actionsHtml = findings.length ? findings.map(f=>{
+    const isTi = typeof f==='object' && f.code==='urlhaus_hit';
+    const rem = typeof f==='object' ? tRemediation(f) : null;
+    const remHtml = rem ? `
+      <div class="aMeaning"><b>${t('what_it_means')}:</b> ${rem.meaning}</div>
+      <div class="aFix"><b>${t('how_to_fix')}:</b> ${rem.fix}</div>` : '';
+    return `<div class="actionCard ${isTi?'ti':''}">
+      <div class="aTech">${tFinding(f)}</div>
+      ${remHtml}
+    </div>`;
+  }).join('') : `<div class="allGoodCard">✓ ${t('all_good')}</div>`;
+
+  const linkHtml = talonClientId ? `
+    <div class="linkSection">
+      <h3>🔗 ${t('linked_badge')}</h3>
+      <p>${LANG==='ja'?`クライアントID: ${talonClientId}`:`Client ID: ${talonClientId}`}</p>
+      <button class="btn" id="unlinkBtn">${LANG==='ja'?'連携を解除':'Unlink'}</button>
+    </div>` : `
+    <div class="linkSection">
+      <h3>${t('link_h')}</h3>
+      <p>${t('link_p')}</p>
+      <div class="linkRow">
+        <input id="linkClientIdInput" placeholder="${t('link_placeholder')}">
+        <button class="btn primary" id="linkBtn">${t('link_btn')}</button>
+      </div>
+      <div class="linkStatus" id="linkStatus"></div>
+    </div>`;
+
+  body.innerHTML = `
+    <div class="vitalsSection">
+      <div class="vitalsRing">
+        ${ringSvg(score, 150, 12, color)}
+        <div class="num"><div class="score">${score}</div><div class="outof">/ 100</div></div>
+      </div>
+      <div class="vitalsText">
+        <div class="tier" style="color:${color}">${tTier(latest.tier)}</div>
+        <p>${t('vitals_intro')[latest.tier] || ''}</p>
+        <div class="sourceBadge">${latest._source==='talon'?'🔗':'●'} ${sourceText}</div>
+        ${sparkline}
+      </div>
+    </div>
+    <div class="sectionTitle">${t('sect_categories')}</div>
+    <div class="catGrid">${catCards}</div>
+    <div class="sectionTitle">${t('sect_actions')}</div>
+    <div class="actionList">${actionsHtml}</div>
+    ${linkHtml}
+  `;
+
+  if(talonClientId){
+    document.getElementById('unlinkBtn').onclick = async ()=>{
+      await api(`/api/domains/${encodeURIComponent(domain)}/link-talon`, {method:'DELETE'});
+      openDetail(domain);
+    };
+  } else {
+    document.getElementById('linkBtn').onclick = async ()=>{
+      const clientId = document.getElementById('linkClientIdInput').value.trim();
+      const status = document.getElementById('linkStatus');
+      if(!clientId) return;
+      try{
+        const res = await api(`/api/domains/${encodeURIComponent(domain)}/link-talon`, {method:'POST', body: JSON.stringify({client_id: clientId})});
+        status.style.color = 'var(--clear)';
+        status.textContent = t('link_success')(Math.round(res.score));
+        setTimeout(()=>openDetail(domain), 900);
+      }catch(e){
+        status.style.color = 'var(--critical)';
+        status.textContent = t('link_failed');
+      }
+    };
+  }
+}
+
+function renderSparkline(history){
+  const w = 240, h = 40, pad = 4;
+  const scores = history.map(hh=>hh.overall_score);
+  const min = Math.min(...scores, 0), max = Math.max(...scores, 100);
+  const pts = scores.map((s,i)=>{
+    const x = pad + (i/(scores.length-1||1)) * (w-pad*2);
+    const y = h - pad - ((s-min)/((max-min)||1)) * (h-pad*2);
+    return `${x},${y}`;
+  }).join(' ');
+  const lastColor = TIER_COLOR[history[history.length-1].tier];
+  return `<div class="sparkWrap"><svg viewBox="0 0 ${w} ${h}"><polyline points="${pts}" fill="none" stroke="${lastColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>`;
+}
+
+document.getElementById('backToDashboard').onclick = renderDashboard;
+
+document.getElementById('rescanBtn').onclick = async ()=>{
+  const domain = CURRENT_DETAIL_DOMAIN;
+  const btn = document.getElementById('rescanBtn');
+  btn.disabled = true; btn.textContent = t('scanning');
+  try{
+    await api(`/api/domains/${encodeURIComponent(domain)}/scan`, {method:'POST'});
+    await openDetail(domain);
+  }catch(e){
+    alert(t('scan_failed'));
+  }finally{
+    btn.disabled = false; btn.textContent = t('rescan_btn');
+  }
+};
+
+document.getElementById('removeDomainBtn').onclick = async ()=>{
+  const domain = CURRENT_DETAIL_DOMAIN;
+  if(!confirm(t('remove_confirm')(domain))) return;
+  await api(`/api/domains/${encodeURIComponent(domain)}`, {method:'DELETE'});
+  renderDashboard();
+};
+
+document.getElementById('pdfBtn').onclick = async ()=>{
+  const domain = CURRENT_DETAIL_DOMAIN;
+  let latest;
+  try{ latest = await api(`/api/domains/${encodeURIComponent(domain)}/latest`); }
+  catch(e){ alert(t('scan_failed')); return; }
+
+  const catRowsHtml = (latest.categories||[]).map(c=>
+    `<tr><td>${tCategory(c)}</td><td>${Math.round(c.score)}</td></tr>`).join('');
+  const findings = (latest.categories||[]).flatMap(c=>c.findings||[]);
+  const findingsHtml = findings.length ? findings.map(f=>{
+    const rem = typeof f==='object' ? tRemediation(f) : null;
+    const remLine = rem ? `<div><b>${t('what_it_means')}:</b> ${rem.meaning}</div><div><b>${t('how_to_fix')}:</b> ${rem.fix}</div>` : '';
+    return `<div class="prFinding">${tFinding(f)}${remLine}</div>`;
+  }).join('') : `<p>${t('report_none')}</p>`;
+
+  const now = new Date().toISOString().replace('T',' ').slice(0,19) + ' UTC';
+  document.getElementById('printReport').innerHTML = `
+    <h1>${t('report_title')}</h1>
+    <div class="prMeta">${domain} &nbsp;·&nbsp; ${t('report_generated')}: ${now}</div>
+    <div class="prScore">${t('report_overall')}: ${Math.round(latest.overall_score)} / 100 — ${tTier(latest.tier)}</div>
+    <table><thead><tr><th>${t('report_category')}</th><th>${t('report_score')}</th></tr></thead>
+    <tbody>${catRowsHtml}</tbody></table>
+    <h3 style="font-family:Arial,sans-serif;font-size:14px;margin-bottom:10px;">${t('report_findings')}</h3>
+    ${findingsHtml}
+    <p style="margin-top:20px; font-size:10px; color:#777;">${t('report_footer')}</p>
+  `;
+  window.print();
+};
+
+// ---------- Startup ----------
+document.getElementById('langSelect').value = LANG;
+setTheme(THEME);
+applyStaticI18n();
+if(TOKEN && ACCOUNT) enterApp();
+
+</script>
+</body>
+</html>

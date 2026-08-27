@@ -1,0 +1,46 @@
+version: "3.9"
+
+# Same host-networking pattern as Eagle Talon (necessary on this box — see
+# Talon's deploy notes for why). Runs alongside Talon at different ports
+# (8001 for the API, 8089 for the web UI by default) so both products are
+# live on core at the same time without colliding.
+#
+# The eagle-talon-data volume is mounted read-only so Eye can look up a
+# domain's existing Talon scan (see EAGLE_TALON_DB_PATH_RO in the API) —
+# this is what makes "tied to Eagle Talon" a real link rather than a stub.
+# Talon must already be deployed at least once (so that volume exists)
+# before this will start cleanly.
+
+services:
+  api:
+    build:
+      context: ../backend
+      network: host
+    container_name: eagle-eye-api
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - eagle-eye-data:/app/data
+      - eagle-talon-data:/app/talon_data
+    environment:
+      - EAGLE_EYE_DB_PATH=/app/data/eagle_eye.db
+      - EAGLE_TALON_DB_PATH_LINK=/app/talon_data/eagle_talon.db
+
+  web:
+    image: nginx:alpine
+    container_name: eagle-eye-web
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      - NGINX_PORT=${EAGLE_EYE_WEB_PORT:-8089}
+    volumes:
+      - ../frontend:/usr/share/nginx/html:ro
+      - ./nginx.conf.template:/etc/nginx/templates/default.conf.template:ro
+    depends_on:
+      - api
+
+volumes:
+  eagle-eye-data:
+    name: eagle-eye-data
+  eagle-talon-data:
+    external: true
