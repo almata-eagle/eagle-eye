@@ -698,7 +698,10 @@ document.getElementById('langSelect').onchange = (e)=>{
   localStorage.setItem('eagle_eye_lang', LANG);
   applyStaticI18n();
   if(document.getElementById('detailView').style.display !== 'none') openDetail(CURRENT_DETAIL_DOMAIN);
+  else if(document.getElementById('monitoringView').style.display !== 'none') renderMonitoringPage();
+  else if(document.getElementById('inventoryView').style.display !== 'none') renderAssets();
   else renderDashboard();
+  loadAlerts();
 };
 
 async function api(path, opts={}){

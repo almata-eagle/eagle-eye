@@ -105,6 +105,7 @@ def detect_technologies(resp) -> list[dict]:
 # ---------------------------------------------------------------------------
 CPE_MAP = {
     # display name -> (cpe vendor, cpe product)
+    # Web stack — detected automatically via domain fingerprinting
     "nginx": ("nginx", "nginx"),
     "Apache": ("apache", "http_server"),
     "Microsoft-IIS": ("microsoft", "internet_information_server"),
@@ -117,6 +118,47 @@ CPE_MAP = {
     "Bootstrap": ("getbootstrap", "bootstrap"),
     "React": ("facebook", "react"),
     "Log4j": ("apache", "log4j"),
+
+    # Operating systems — manually entered for an office asset inventory
+    "Windows Server 2019": ("microsoft", "windows_server_2019"),
+    "Windows Server 2022": ("microsoft", "windows_server_2022"),
+    "Windows 10": ("microsoft", "windows_10"),
+    "Windows 11": ("microsoft", "windows_11"),
+    "macOS": ("apple", "macos"),
+    "Ubuntu Linux": ("canonical", "ubuntu_linux"),
+
+    # Network / firewall / VPN hardware — common office edge devices
+    "Cisco IOS": ("cisco", "ios"),
+    "Fortinet FortiOS": ("fortinet", "fortios"),
+    "pfSense": ("netgate", "pfsense"),
+    "SonicWall SonicOS": ("sonicwall", "sonicos"),
+    "Ubiquiti UniFi Network": ("ui", "unifi_network_application"),
+
+    # Common office software
+    "Google Chrome": ("google", "chrome"),
+    "Mozilla Firefox": ("mozilla", "firefox"),
+    "Adobe Acrobat Reader": ("adobe", "acrobat_reader"),
+    "Zoom": ("zoom", "zoom"),
+    "Slack": ("slack", "slack"),
+    "7-Zip": ("7-zip", "7-zip"),
+
+    # Servers commonly self-hosted by small offices
+    "Microsoft Exchange Server": ("microsoft", "exchange_server"),
+    "MySQL": ("oracle", "mysql"),
+    "PostgreSQL": ("postgresql", "postgresql"),
+    "OpenSSH": ("openbsd", "openssh"),
+    "VMware ESXi": ("vmware", "esxi"),
+    "Docker Desktop": ("docker", "desktop"),
+}
+
+# Grouped for the frontend's asset-catalog dropdown — purely a display
+# concern, doesn't affect matching logic.
+CPE_CATEGORIES = {
+    "Operating Systems": ["Windows Server 2019", "Windows Server 2022", "Windows 10", "Windows 11", "macOS", "Ubuntu Linux"],
+    "Network / Firewall / VPN": ["Cisco IOS", "Fortinet FortiOS", "pfSense", "SonicWall SonicOS", "Ubiquiti UniFi Network"],
+    "Office Software": ["Google Chrome", "Mozilla Firefox", "Adobe Acrobat Reader", "Zoom", "Slack", "7-Zip"],
+    "Servers & Infrastructure": ["Microsoft Exchange Server", "MySQL", "PostgreSQL", "OpenSSH", "VMware ESXi", "Docker Desktop", "nginx", "Apache", "Microsoft-IIS"],
+    "Web / App Stack": ["PHP", "OpenSSL", "WordPress", "Drupal", "Joomla", "jQuery", "Bootstrap", "React", "Log4j"],
 }
 
 _cve_cache: dict[tuple, list] = {}
