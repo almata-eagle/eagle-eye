@@ -1,3 +1,4 @@
+name: eagle-eye
 version: "3.9"
 
 # Same host-networking pattern as Eagle Talon (necessary on this box — see
