@@ -55,8 +55,8 @@
 
   /* ---------- Topbar ---------- */
   .topbar{
-    display:flex; align-items:center; gap:16px; padding:18px 32px; border-bottom:1px solid var(--line);
-    background:var(--panel);
+    display:flex; align-items:center; gap:12px; padding:18px 32px; border-bottom:1px solid var(--line);
+    background:var(--panel); flex-wrap:wrap; row-gap:10px;
   }
   .topbar .brand{display:flex; align-items:center; gap:10px; font-family:var(--font-display); font-weight:700; font-size:17px;}
   .topbar .brand img{height:26px; width:auto;}
@@ -282,11 +282,11 @@
       </div>
     </div>
     <select id="langSelect"><option value="en">EN</option><option value="ja">日本語</option></select>
-    <select id="cardStyleSelect" title="Score card style" style="background:var(--panel-2); border:1px solid var(--line); color:var(--text); font-size:12.5px; padding:7px 10px; border-radius:8px;">
-      <option value="ring">◎ Ring</option>
-      <option value="gauge">◡ Gauge</option>
-      <option value="grade">🅰 Grade</option>
-    </select>
+    <div class="navTabs" id="cardStyleToggle" title="Score card style">
+      <button class="navTab" data-style="ring">Ring</button>
+      <button class="navTab" data-style="gauge">Gauge</button>
+      <button class="navTab" data-style="grade">Grade</button>
+    </div>
     <button id="themeToggleBtn" title="Toggle light/dark">◐</button>
     <button id="logoutBtn" data-i18n="logout_btn">Log out</button>
   </div>
@@ -705,13 +705,21 @@ function setTheme(theme){
 }
 document.getElementById('themeToggleBtn').onclick = ()=> setTheme(THEME==='light'?'dark':'light');
 
-document.getElementById('cardStyleSelect').value = CARD_STYLE;
-document.getElementById('cardStyleSelect').onchange = (e)=>{
-  CARD_STYLE = e.target.value;
-  localStorage.setItem('eagle_eye_card_style', CARD_STYLE);
-  if(document.getElementById('detailView').style.display !== 'none') openDetail(CURRENT_DETAIL_DOMAIN);
-  else if(document.getElementById('dashboardView').style.display !== 'none') renderDashboard();
-};
+function updateCardStyleToggle(){
+  document.querySelectorAll('#cardStyleToggle .navTab').forEach(btn=>{
+    btn.classList.toggle('active', btn.dataset.style === CARD_STYLE);
+  });
+}
+updateCardStyleToggle();
+document.querySelectorAll('#cardStyleToggle .navTab').forEach(btn=>{
+  btn.onclick = ()=>{
+    CARD_STYLE = btn.dataset.style;
+    localStorage.setItem('eagle_eye_card_style', CARD_STYLE);
+    updateCardStyleToggle();
+    if(document.getElementById('detailView').style.display !== 'none') openDetail(CURRENT_DETAIL_DOMAIN);
+    else if(document.getElementById('dashboardView').style.display !== 'none') renderDashboard();
+  };
+});
 
 document.getElementById('langSelect').onchange = (e)=>{
   LANG = e.target.value;
