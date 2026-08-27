@@ -1326,6 +1326,8 @@ document.getElementById('assetModalSave').onclick = async ()=>{
   }catch(e){ alert(e.message); }
 };
 
+let EXPANDED_ASSET_IDS = new Set();
+
 async function renderAssets(){
   const list = document.getElementById('assetList');
   list.innerHTML = '…';
@@ -1341,6 +1343,8 @@ async function renderAssets(){
   }
 
   list.innerHTML = assets.map(a=>{
+    const hasCves = a.cves && a.cves.length > 0;
+    const isExpanded = hasCves && EXPANDED_ASSET_IDS.has(a.id);
     let statusHtml;
     if(!a.trackable){
       statusHtml = `<span class="assetStatus untracked">${t('inv_untracked')}</span>`;
@@ -1348,12 +1352,12 @@ async function renderAssets(){
       statusHtml = `<span class="assetStatus untracked">${t('inv_need_version')}</span>`;
     } else if(!a.last_checked_at){
       statusHtml = `<span class="assetStatus unchecked">${t('inv_unchecked')}</span><button class="btn" data-check="${a.id}" style="padding:5px 10px; font-size:11px; margin-left:8px;">${t('inv_check_btn')}</button>`;
-    } else if(a.cves && a.cves.length > 0){
-      statusHtml = `<span class="assetStatus vuln">${t('inv_vuln')(a.cves.length)}</span><button class="btn" data-check="${a.id}" style="padding:5px 10px; font-size:11px; margin-left:8px;">${t('inv_check_btn')}</button>`;
+    } else if(hasCves){
+      statusHtml = `<span class="assetStatus vuln" data-toggle-cve="${a.id}" style="cursor:pointer; user-select:none;">${t('inv_vuln')(a.cves.length)} ${isExpanded?'▲':'▼'}</span><button class="btn" data-check="${a.id}" style="padding:5px 10px; font-size:11px; margin-left:8px;">${t('inv_check_btn')}</button>`;
     } else {
       statusHtml = `<span class="assetStatus clean">✓ ${t('inv_clean')}</span><button class="btn" data-check="${a.id}" style="padding:5px 10px; font-size:11px; margin-left:8px;">${t('inv_check_btn')}</button>`;
     }
-    const cveListHtml = (a.cves && a.cves.length > 0) ? `<div class="assetCveList">${a.cves.map(c=>
+    const cveListHtml = isExpanded ? `<div class="assetCveList">${a.cves.map(c=>
       `<div class="assetCveItem"><b>${c.cve_id}</b> (${c.severity}) — ${c.summary}</div>`
     ).join('')}</div>` : '';
     return `<div class="assetCard" data-id="${a.id}">
@@ -1367,6 +1371,14 @@ async function renderAssets(){
     </div>`;
   }).join('');
 
+  list.querySelectorAll('[data-toggle-cve]').forEach(el=>{
+    el.onclick = ()=>{
+      const id = parseInt(el.dataset.toggleCve);
+      if(EXPANDED_ASSET_IDS.has(id)) EXPANDED_ASSET_IDS.delete(id);
+      else EXPANDED_ASSET_IDS.add(id);
+      renderAssets();
+    };
+  });
   list.querySelectorAll('[data-check]').forEach(btn=>{
     btn.onclick = async ()=>{
       btn.disabled = true; btn.textContent = t('inv_checking');
