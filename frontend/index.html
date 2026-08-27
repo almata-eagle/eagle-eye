@@ -1246,12 +1246,41 @@ async function renderMonitoringPage(){
 // ---------- Asset & software inventory ----------
 let ASSET_CATALOG = {};
 let ASSET_LABELS = [];
+let LABEL_PRODUCT_MAP = {};
 async function loadAssetCatalog(){
   try{
     const data = await api('/api/asset-catalog');
     ASSET_CATALOG = data.categories;
     ASSET_LABELS = data.common_labels || [];
-  }catch(e){ ASSET_CATALOG = {}; ASSET_LABELS = []; }
+    LABEL_PRODUCT_MAP = data.label_product_map || {};
+  }catch(e){ ASSET_CATALOG = {}; ASSET_LABELS = []; LABEL_PRODUCT_MAP = {}; }
+}
+
+function allCatalogProductsHtml(){
+  let html = '';
+  for(const [category, items] of Object.entries(ASSET_CATALOG)){
+    html += `<optgroup label="${category}">` + items.map(i=>`<option value="${i}">${i}</option>`).join('') + `</optgroup>`;
+  }
+  return html;
+}
+
+function populateTechSelectFor(label){
+  const techSel = document.getElementById('assetTechSelect');
+  const relevant = LABEL_PRODUCT_MAP[label];
+  let html = `<option value="__other__">${t('inv_custom_option')}</option>`;
+  if(relevant && relevant.length > 0){
+    // Label picked from the known list, with a curated match — filtered dropdown.
+    html += relevant.map(i=>`<option value="${i}">${i}</option>`).join('');
+  } else if(relevant && relevant.length === 0){
+    // Known label, but the catalog genuinely has no matching product yet (e.g. printers).
+    // Just leave "Custom" — don't pretend there's a relevant option.
+  } else {
+    // "Other" label (or unrecognized) — show the full catalog, since we don't
+    // know what kind of asset this is.
+    html += allCatalogProductsHtml();
+  }
+  techSel.innerHTML = html;
+  document.getElementById('assetTechCustomInput').style.display = 'none';
 }
 
 function populateAssetModalSelects(){
@@ -1259,19 +1288,13 @@ function populateAssetModalSelects(){
   labelSel.innerHTML = ASSET_LABELS.map(l=>`<option value="${l}">${l}</option>`).join('')
     + `<option value="__other__">${t('inv_custom_option')}</option>`;
 
-  const techSel = document.getElementById('assetTechSelect');
-  let html = `<option value="__other__">${t('inv_custom_option')}</option>`;
-  for(const [category, items] of Object.entries(ASSET_CATALOG)){
-    html += `<optgroup label="${category}">` + items.map(i=>`<option value="${i}">${i}</option>`).join('') + `</optgroup>`;
-  }
-  techSel.innerHTML = html;
-
+  populateTechSelectFor(labelSel.value);
   document.getElementById('assetLabelCustomInput').style.display = 'none';
-  document.getElementById('assetTechCustomInput').style.display = 'none';
 }
 
 document.getElementById('assetLabelSelect').onchange = (e)=>{
   document.getElementById('assetLabelCustomInput').style.display = e.target.value === '__other__' ? 'block' : 'none';
+  populateTechSelectFor(e.target.value);
 };
 document.getElementById('assetTechSelect').onchange = (e)=>{
   document.getElementById('assetTechCustomInput').style.display = e.target.value === '__other__' ? 'block' : 'none';

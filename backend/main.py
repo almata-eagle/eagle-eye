@@ -597,9 +597,11 @@ COMMON_ASSET_LABELS = [
 @app.get("/api/asset-catalog")
 def asset_catalog():
     """The known, CVE-trackable products, grouped for a dropdown, plus a
-    starter list of common asset labels. Either can be overridden with a
-    custom typed value — this list is just a head start, not a restriction."""
-    return {"categories": techstack.CPE_CATEGORIES, "common_labels": COMMON_ASSET_LABELS}
+    starter list of common asset labels and which products are relevant to
+    each one. Either can be overridden with a custom typed value — this
+    list is just a head start, not a restriction."""
+    return {"categories": techstack.CPE_CATEGORIES, "common_labels": COMMON_ASSET_LABELS,
+            "label_product_map": techstack.LABEL_TO_PRODUCTS}
 
 
 class AssetCreate(BaseModel):

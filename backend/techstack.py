@@ -161,6 +161,29 @@ CPE_CATEGORIES = {
     "Web / App Stack": ["PHP", "OpenSSL", "WordPress", "Drupal", "Joomla", "jQuery", "Bootstrap", "React", "Log4j"],
 }
 
+# Which catalog products are actually relevant to each common asset label —
+# narrows the product dropdown once a label is picked, instead of showing
+# the whole catalog regardless. Left deliberately empty for labels where the
+# catalog genuinely has no good match yet (e.g. printers, cameras) — an
+# honest empty list beats forcing an irrelevant product into the picker.
+LABEL_TO_PRODUCTS = {
+    "Office Firewall": ["Fortinet FortiOS", "pfSense", "SonicWall SonicOS", "Cisco IOS"],
+    "Office Router": ["Cisco IOS", "pfSense", "Ubiquiti UniFi Network", "Fortinet FortiOS"],
+    "Office Wi-Fi Access Point": ["Ubiquiti UniFi Network"],
+    "VPN Gateway": ["Fortinet FortiOS", "pfSense", "SonicWall SonicOS", "Cisco IOS"],
+    "File Server": ["Windows Server 2019", "Windows Server 2022", "Ubuntu Linux", "VMware ESXi"],
+    "Email Server": ["Microsoft Exchange Server"],
+    "Backup Server": ["Windows Server 2019", "Windows Server 2022", "Ubuntu Linux", "VMware ESXi"],
+    "Domain Controller": ["Windows Server 2019", "Windows Server 2022"],
+    "Reception PC": ["Windows 10", "Windows 11", "macOS"],
+    "Employee Laptop": ["Windows 10", "Windows 11", "macOS", "Ubuntu Linux"],
+    "Employee Desktop": ["Windows 10", "Windows 11", "macOS", "Ubuntu Linux"],
+    "Point of Sale System": ["Windows 10", "Windows 11"],
+    "Printer / Scanner": [],
+    "Security Camera / NVR": [],
+    "Guest Wi-Fi": ["Ubiquiti UniFi Network"],
+}
+
 _cve_cache: dict[tuple, list] = {}
 _cache_lock = threading.Lock()
 
